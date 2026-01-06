@@ -62,6 +62,8 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        // New color for login page background
+        "login-background": "hsl(var(--login-background))",
       },
       borderRadius: {
         lg: "var(--radius)",
