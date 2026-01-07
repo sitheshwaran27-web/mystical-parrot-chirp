@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -16,6 +16,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useSession } from "@/context/SessionContext";
+import { Loader2 } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
@@ -27,6 +30,7 @@ type LoginFormInputs = z.infer<typeof loginSchema>;
 const LoginPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { session, loading: sessionLoading } = useSession();
 
   const {
     register,
@@ -36,38 +40,45 @@ const LoginPage = () => {
     resolver: zodResolver(loginSchema),
   });
 
-  const onSubmit = (data: LoginFormInputs) => {
-    // Mock authentication logic
-    // In a real application, this would be an API call to your backend
-    if (data.email === "admin@example.com" && data.password === "password") {
-      toast({
-        title: "Login Successful",
-        description: "Redirecting to Admin Dashboard.",
-      });
-      navigate("/dashboard");
-    } else if (data.email === "faculty@example.com" && data.password === "password") {
-      toast({
-        title: "Login Successful",
-        description: "Redirecting to Faculty Dashboard.",
-      });
-      navigate("/dashboard"); // Faculty also uses /dashboard for now
-    } else if (data.email === "student@example.com" && data.password === "password") {
-      toast({
-        title: "Login Successful",
-        description: "Redirecting to Student Dashboard.",
-      });
-      navigate("/student-dashboard");
-    } else {
+  useEffect(() => {
+    if (!sessionLoading && session) {
+      // SessionContext already handles redirection based on role
+      // No need for explicit redirection here if session exists
+    }
+  }, [session, sessionLoading, navigate]);
+
+  const onSubmit = async (data: LoginFormInputs) => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email: data.email,
+      password: data.password,
+    });
+
+    if (error) {
       toast({
         title: "Login Failed",
-        description: "Invalid email or password.",
+        description: error.message,
         variant: "destructive",
+      });
+    } else {
+      // SessionContext will handle successful login and redirection
+      toast({
+        title: "Login Successful",
+        description: "Redirecting to your dashboard...",
       });
     }
   };
 
+  if (sessionLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background text-foreground">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-2">Loading session...</span>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-950">
+    <div className="flex min-h-screen items-center justify-center bg-login-background dark:bg-background">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">
           <CardTitle className="text-2xl">Login to Timetable App</CardTitle>
