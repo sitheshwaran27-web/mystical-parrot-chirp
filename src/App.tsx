@@ -6,8 +6,9 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import FacultyManagement from "./pages/FacultyManagement";
-import LoginPage from "./pages/LoginPage"; // Import the new LoginPage
-import StudentDashboard from "./pages/StudentDashboard"; // Import the new StudentDashboard
+import LoginPage from "./pages/LoginPage";
+import StudentDashboard from "./pages/StudentDashboard";
+import SubjectManagement from "./pages/SubjectManagement"; // Import the new page
 
 const queryClient = new QueryClient();
 
@@ -18,11 +19,12 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Navigate to="/login" replace />} /> {/* Redirect to login */}
-          <Route path="/login" element={<LoginPage />} /> {/* Login Page */}
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/login" element={<LoginPage />} />
           <Route path="/dashboard" element={<Index />} />
           <Route path="/dashboard/faculty" element={<FacultyManagement />} />
-          <Route path="/student-dashboard" element={<StudentDashboard />} /> {/* Student Dashboard */}
+          <Route path="/dashboard/subjects" element={<SubjectManagement />} /> {/* New route */}
+          <Route path="/student-dashboard" element={<StudentDashboard />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
