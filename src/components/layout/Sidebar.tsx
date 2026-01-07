@@ -15,7 +15,10 @@ import {
   ClipboardList,
   DoorOpen,
   GraduationCap,
+  Boxes, // Icon for Batches
+  ListChecks, // Icon for Scheduling Rules
 } from "lucide-react";
+import { useSession } from "@/context/SessionContext"; // Import useSession
 
 interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
   className?: string;
@@ -41,15 +44,9 @@ const navItems = [
     roles: ["admin"],
   },
   {
-    name: "Courses",
-    href: "/dashboard/courses",
-    icon: GraduationCap,
-    roles: ["admin"],
-  },
-  {
     name: "Batches",
     href: "/dashboard/batches",
-    icon: Users, // Reusing Users icon for batches for now
+    icon: Boxes, 
     roles: ["admin"],
   },
   {
@@ -67,7 +64,7 @@ const navItems = [
   {
     name: "Scheduling Rules",
     href: "/dashboard/rules",
-    icon: Settings,
+    icon: ListChecks,
     roles: ["admin"],
   },
   {
@@ -91,8 +88,8 @@ const navItems = [
 ];
 
 export function Sidebar({ className }: SidebarProps) {
-  // In a real app, you'd get the user's role from context/auth
-  const userRole = "admin"; // For now, assume admin role to show all links
+  const { profile } = useSession(); // Get user profile from session context
+  const userRole = profile?.role || "student"; // Default to student if no role
 
   return (
     <div className={cn("pb-12", className)}>

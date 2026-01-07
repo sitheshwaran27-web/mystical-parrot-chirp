@@ -10,8 +10,12 @@ import LoginPage from "./pages/LoginPage";
 import StudentDashboard from "./pages/StudentDashboard";
 import SubjectManagement from "./pages/SubjectManagement";
 import RoomManagement from "./pages/RoomManagement";
+import DepartmentManagement from "./pages/DepartmentManagement"; // New import
+import BatchManagement from "./pages/BatchManagement"; // New import
+import SchedulingRuleManagement from "./pages/SchedulingRuleManagement"; // New import
 import { SessionContextProvider, useSession } from "./context/SessionContext";
 import React from "react";
+import { Loader2 } from "lucide-react"; // Import Loader2
 
 const queryClient = new QueryClient();
 
@@ -37,6 +41,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles: string
 
   if (!profile || !allowedRoles.includes(profile.role || '')) {
     // Redirect to a generic dashboard or login if role is not allowed
+    // For now, redirect to login, but in a real app, you might have a "Unauthorized" page
     return <Navigate to="/login" replace />;
   }
 
@@ -72,6 +77,22 @@ const App = () => (
               }
             />
             <Route
+              path="/dashboard/departments"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <DepartmentManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/batches"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <BatchManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/dashboard/subjects"
               element={
                 <ProtectedRoute allowedRoles={["admin"]}>
@@ -84,6 +105,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["admin"]}>
                   <RoomManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/rules"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <SchedulingRuleManagement />
                 </ProtectedRoute>
               }
             />
