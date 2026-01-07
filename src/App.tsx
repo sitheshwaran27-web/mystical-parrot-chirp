@@ -8,7 +8,8 @@ import NotFound from "./pages/NotFound";
 import FacultyManagement from "./pages/FacultyManagement";
 import LoginPage from "./pages/LoginPage";
 import StudentDashboard from "./pages/StudentDashboard";
-import SubjectManagement from "./pages/SubjectManagement"; // Import the new page
+import SubjectManagement from "./pages/SubjectManagement";
+import RoomManagement from "./pages/RoomManagement"; // Import the new page
 
 const queryClient = new QueryClient();
 
@@ -23,7 +24,8 @@ const App = () => (
           <Route path="/login" element={<LoginPage />} />
           <Route path="/dashboard" element={<Index />} />
           <Route path="/dashboard/faculty" element={<FacultyManagement />} />
-          <Route path="/dashboard/subjects" element={<SubjectManagement />} /> {/* New route */}
+          <Route path="/dashboard/subjects" element={<SubjectManagement />} />
+          <Route path="/dashboard/rooms" element={<RoomManagement />} /> {/* New route */}
           <Route path="/student-dashboard" element={<StudentDashboard />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
