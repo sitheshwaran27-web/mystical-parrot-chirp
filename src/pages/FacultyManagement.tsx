@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Trash2, Upload, FileSpreadsheet, RefreshCw, Edit } from "lucide-react";
+import { Loader2, Trash2, Upload, FileSpreadsheet, RefreshCw, Edit, Plus } from "lucide-react";
 import * as XLSX from "xlsx";
 
 interface Faculty {
