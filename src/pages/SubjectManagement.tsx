@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,7 +30,8 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Trash2, Plus, RefreshCw } from "lucide-react";
+import { Loader2, Trash2, Plus, RefreshCw, Upload, FileSpreadsheet } from "lucide-react";
+import * as XLSX from "xlsx";
 
 interface Subject {
   id: string;
@@ -48,6 +49,9 @@ const SubjectManagement = () => {
   const [departments, setDepartments] = useState<{ name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const [newSubject, setNewSubject] = useState({
     name: "",
     type: "theory",
@@ -159,6 +163,72 @@ const SubjectManagement = () => {
     }
   };
 
+  const handleBulkUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const data = new Uint8Array(event.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json(worksheet);
+
+        if (json.length === 0) {
+          throw new Error("The uploaded file is empty.");
+        }
+
+        // Map Excel columns to database columns
+        const subjectsToInsert = json.map((row: any) => ({
+          name: row.name || row.Name || "",
+          type: (row.type || row.Type || "theory").toLowerCase(),
+          department: row.department || row.Department || null,
+          class_name: row.class_name || row.Class || null,
+          section: row.section || row.Section || null,
+          year: row.year || row.Year ? parseInt(row.year || row.Year) : null,
+          semester: row.semester || row.Semester ? parseInt(row.semester || row.Semester) : null,
+        })).filter(s => s.name && s.type && s.department);
+
+        if (subjectsToInsert.length === 0) {
+          throw new Error("No valid subjects found. Ensure columns 'name', 'type', and 'department' are present.");
+        }
+
+        const { error } = await supabase.from("subjects").insert(subjectsToInsert);
+
+        if (error) throw error;
+
+        toast({
+          title: "Bulk Upload Success",
+          description: `Successfully uploaded ${subjectsToInsert.length} subjects.`,
+        });
+        fetchSubjects();
+      } catch (error: any) {
+        toast({
+          title: "Upload Failed",
+          description: error.message,
+          variant: "destructive",
+        });
+      } finally {
+        setIsUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const downloadTemplate = () => {
+    const template = [
+      { name: "Subject Name", type: "theory", department: "Computer Science", class_name: "FYBCA", section: "A", year: 2024, semester: 1 }
+    ];
+    const ws = XLSX.utils.json_to_sheet(template);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template");
+    XLSX.writeFile(wb, "Subject_Upload_Template.xlsx");
+  };
+
   return (
     <DashboardLayout>
       <div className="container mx-auto py-8">
@@ -168,6 +238,50 @@ const SubjectManagement = () => {
             <Button variant="outline" size="icon" onClick={fetchSubjects} disabled={loading}>
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             </Button>
+            
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline"><Upload className="mr-2 h-4 w-4" /> Bulk Upload</Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Bulk Upload Subjects</DialogTitle>
+                  <DialogDescription>
+                    Upload an Excel file (.xls, .xlsx) with subjects data.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="grid gap-2">
+                    <Label>Instructions</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Ensure your file has the following columns: <strong>name, type, department</strong>. 
+                      Optional: class_name, section, year, semester.
+                    </p>
+                    <Button variant="link" onClick={downloadTemplate} className="justify-start p-0 h-auto">
+                      <FileSpreadsheet className="mr-2 h-4 w-4" /> Download Template
+                    </Button>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="bulk-file">Choose File</Label>
+                    <Input 
+                      id="bulk-file" 
+                      type="file" 
+                      accept=".xls,.xlsx" 
+                      onChange={handleBulkUpload} 
+                      disabled={isUploading}
+                      ref={fileInputRef}
+                    />
+                  </div>
+                  {isUploading && (
+                    <div className="flex items-center justify-center p-2">
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      <span>Processing...</span>
+                    </div>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button><Plus className="mr-2 h-4 w-4" /> Add Subject</Button>
