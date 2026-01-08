@@ -39,6 +39,8 @@ interface Subject {
   department: string | null;
   section: string | null;
   class_name: string | null;
+  year: number | null;
+  semester: number | null;
 }
 
 const SubjectManagement = () => {
@@ -52,6 +54,8 @@ const SubjectManagement = () => {
     department: "",
     section: "",
     class_name: "",
+    year: "",
+    semester: "",
   });
   const { toast } = useToast();
 
@@ -111,6 +115,8 @@ const SubjectManagement = () => {
         department: newSubject.department,
         section: newSubject.section,
         class_name: newSubject.class_name,
+        year: newSubject.year ? parseInt(newSubject.year) : null,
+        semester: newSubject.semester ? parseInt(newSubject.semester) : null,
       },
     ]);
 
@@ -130,7 +136,9 @@ const SubjectManagement = () => {
         type: "theory", 
         department: "", 
         section: "", 
-        class_name: "" 
+        class_name: "",
+        year: "",
+        semester: "",
       });
       setIsDialogOpen(false);
       fetchSubjects();
@@ -207,6 +215,16 @@ const SubjectManagement = () => {
                       <Input id="section" value={newSubject.section} onChange={handleInputChange} placeholder="e.g. A" />
                     </div>
                   </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="year">Year</Label>
+                      <Input id="year" type="number" value={newSubject.year} onChange={handleInputChange} placeholder="e.g. 2024" />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="semester">Semester</Label>
+                      <Input id="semester" type="number" value={newSubject.semester} onChange={handleInputChange} placeholder="e.g. 1" />
+                    </div>
+                  </div>
                   <Button type="submit" className="w-full mt-4">Add Subject</Button>
                 </form>
               </DialogContent>
@@ -223,6 +241,7 @@ const SubjectManagement = () => {
                 <TableRow>
                   <TableHead>Subject Name</TableHead>
                   <TableHead>Dept / Class / Sec</TableHead>
+                  <TableHead>Year / Sem</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -230,7 +249,7 @@ const SubjectManagement = () => {
               <TableBody>
                 {subjectList.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-10 text-muted-foreground">No subjects found.</TableCell>
+                    <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">No subjects found.</TableCell>
                   </TableRow>
                 ) : (
                   subjectList.map((subject) => (
@@ -239,6 +258,11 @@ const SubjectManagement = () => {
                       <TableCell>
                         <span className="text-xs text-muted-foreground">
                           {subject.department || "-"} / {subject.class_name || "-"} / {subject.section || "-"}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-xs">
+                          {subject.year || "-"} / {subject.semester || "-"}
                         </span>
                       </TableCell>
                       <TableCell className="capitalize">{subject.type}</TableCell>
