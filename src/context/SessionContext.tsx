@@ -9,7 +9,7 @@ import { showSuccess, showError } from '@/utils/toast';
 interface SessionContextType {
   session: Session | null;
   user: User | null;
-  profile: { role: string | null; class_name: string | null } | null;
+  profile: { role: string | null; class_name: string | null; first_name: string | null } | null;
   loading: boolean;
   signOut: () => Promise<void>;
 }
@@ -19,38 +19,50 @@ const SessionContext = createContext<SessionContextType | undefined>(undefined);
 export const SessionContextProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<{ role: string | null; class_name: string | null } | null>(null);
+  const [profile, setProfile] = useState<{ role: string | null; class_name: string | null; first_name: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
+    let isMounted = true; // Flag to prevent state updates on unmounted component
+
+    const fetchProfile = async (userId: string) => {
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('role, class_name, first_name')
+        .eq('id', userId)
+        .single();
+
+      if (!isMounted) return;
+
+      if (profileError && profileError.code !== 'PGRST116') { // PGRST116 means no rows found
+        console.error('Error fetching profile:', profileError);
+        showError('Failed to load user profile.');
+        setProfile(null);
+      } else if (profileData) {
+        setProfile(profileData);
+        return profileData; // Return profile data for redirection logic
+      } else {
+        setProfile(null); // No profile found
+      }
+      return null;
+    };
+
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
+        if (!isMounted) return;
+
         setSession(currentSession);
         setUser(currentSession?.user || null);
 
         if (currentSession?.user) {
-          // Fetch user profile
-          const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('role, class_name')
-            .eq('id', currentSession.user.id)
-            .single();
-
-          if (profileError && profileError.code !== 'PGRST116') { // PGRST116 means no rows found
-            console.error('Error fetching profile:', profileError);
-            showError('Failed to load user profile.');
-            setProfile(null);
-          } else if (profileData) {
-            setProfile(profileData);
-          } else {
-            setProfile(null); // No profile found
-          }
+          const fetchedProfile = await fetchProfile(currentSession.user.id);
+          if (!isMounted) return;
 
           // Redirect based on role
-          if (profileData?.role === 'admin' || profileData?.role === 'faculty') {
+          if (fetchedProfile?.role === 'admin' || fetchedProfile?.role === 'faculty') {
             navigate('/dashboard');
-          } else if (profileData?.role === 'student') {
+          } else if (fetchedProfile?.role === 'student') {
             navigate('/student-dashboard');
           } else {
             // Default to student dashboard if role is not explicitly admin/faculty
@@ -64,34 +76,9 @@ export const SessionContextProvider = ({ children }: { children: ReactNode }) =>
       }
     );
 
-    // Initial session check
-    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
-      setSession(initialSession);
-      setUser(initialSession?.user || null);
-      if (initialSession?.user) {
-        supabase
-          .from('profiles')
-          .select('role, class_name')
-          .eq('id', initialSession.user.id)
-          .single()
-          .then(({ data: profileData, error: profileError }) => {
-            if (profileError && profileError.code !== 'PGRST116') {
-              console.error('Error fetching initial profile:', profileError);
-              showError('Failed to load user profile.');
-              setProfile(null);
-            } else if (profileData) {
-              setProfile(profileData);
-            } else {
-              setProfile(null);
-            }
-            setLoading(false);
-          });
-      } else {
-        setLoading(false);
-      }
-    });
-
+    // Cleanup function
     return () => {
+      isMounted = false;
       authListener.subscription.unsubscribe();
     };
   }, [navigate]);
