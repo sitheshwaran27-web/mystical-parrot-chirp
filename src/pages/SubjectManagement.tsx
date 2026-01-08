@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,28 +28,63 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { Loader2, Trash2, Plus, RefreshCw } from "lucide-react";
 
 interface Subject {
   id: string;
   name: string;
-  type: "theory" | "lab";
-  priority: "high" | "medium" | "low";
+  type: string;
+  priority: string;
+  department: string | null;
+  section: string | null;
+  class_name: string | null;
 }
 
 const SubjectManagement = () => {
-  const [subjectList, setSubjectList] = useState<Subject[]>([
-    { id: "sub1", name: "Data Structures", type: "theory", priority: "high" },
-    { id: "sub2", name: "Web Development Lab", type: "lab", priority: "medium" },
-    { id: "sub3", name: "Operating Systems", type: "theory", priority: "high" },
-  ]);
+  const [subjectList, setSubjectList] = useState<Subject[]>([]);
+  const [departments, setDepartments] = useState<{ name: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newSubject, setNewSubject] = useState({
     name: "",
     type: "theory",
     priority: "medium",
+    department: "",
+    section: "",
+    class_name: "",
   });
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
+
+  const fetchSubjects = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("subjects")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch subjects.",
+        variant: "destructive",
+      });
+    } else {
+      setSubjectList(data || []);
+    }
+    setLoading(false);
+  }, [toast]);
+
+  const fetchDepartments = useCallback(async () => {
+    const { data } = await supabase.from("departments").select("name");
+    if (data) setDepartments(data);
+  }, []);
+
+  useEffect(() => {
+    fetchSubjects();
+    fetchDepartments();
+  }, [fetchSubjects, fetchDepartments]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -60,127 +95,184 @@ const SubjectManagement = () => {
     setNewSubject((prev) => ({ ...prev, [id]: value }));
   };
 
-  const handleAddSubject = (e: React.FormEvent) => {
+  const handleAddSubject = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newSubject.name || !newSubject.type || !newSubject.priority) {
+    if (!newSubject.name || !newSubject.type || !newSubject.department) {
       toast({
         title: "Error",
-        description: "Please fill in all fields.",
+        description: "Please fill in all required fields.",
         variant: "destructive",
       });
       return;
     }
 
-    const id = `sub${subjectList.length + 1}`; // Simple ID generation
-    setSubjectList((prev) => [...prev, { id, ...newSubject, type: newSubject.type as "theory" | "lab", priority: newSubject.priority as "high" | "medium" | "low" }]);
-    setNewSubject({ name: "", type: "theory", priority: "medium" }); // Reset form
-    setIsDialogOpen(false);
-    toast({
-      title: "Success",
-      description: "Subject added successfully.",
-    });
+    const { error } = await supabase.from("subjects").insert([
+      {
+        name: newSubject.name,
+        type: newSubject.type,
+        priority: newSubject.priority,
+        department: newSubject.department,
+        section: newSubject.section,
+        class_name: newSubject.class_name,
+      },
+    ]);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Success",
+        description: "Subject added successfully.",
+      });
+      setNewSubject({ 
+        name: "", 
+        type: "theory", 
+        priority: "medium", 
+        department: "", 
+        section: "", 
+        class_name: "" 
+      });
+      setIsDialogOpen(false);
+      fetchSubjects();
+    }
+  };
+
+  const handleDeleteSubject = async (id: string) => {
+    const { error } = await supabase.from("subjects").delete().eq("id", id);
+    if (error) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({ title: "Deleted", description: "Subject removed." });
+      fetchSubjects();
+    }
   };
 
   return (
     <DashboardLayout>
       <div className="container mx-auto py-8">
-        <h1 className="text-3xl font-bold mb-8">Subject Management</h1>
-
-        <div className="flex justify-end mb-4">
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>Add Subject</Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Add New Subject</DialogTitle>
-                <DialogDescription>
-                  Enter the details for the new subject.
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleAddSubject} className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="name" className="text-right">
-                    Name
-                  </Label>
-                  <Input
-                    id="name"
-                    value={newSubject.name}
-                    onChange={handleInputChange}
-                    className="col-span-3"
-                    required
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="type" className="text-right">
-                    Type
-                  </Label>
-                  <Select
-                    onValueChange={(value) => handleSelectChange(value, "type")}
-                    value={newSubject.type}
-                    required
-                  >
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="theory">Theory</SelectItem>
-                      <SelectItem value="lab">Lab</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="priority" className="text-right">
-                    Priority
-                  </Label>
-                  <Select
-                    onValueChange={(value) => handleSelectChange(value, "priority")}
-                    value={newSubject.priority}
-                    required
-                  >
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Select priority" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="high">High</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="low">Low</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button type="submit" className="w-full mt-4">
-                  Add Subject
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold">Subject Management</h1>
+          <div className="flex gap-2">
+            <Button variant="outline" size="icon" onClick={fetchSubjects} disabled={loading}>
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            </Button>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button><Plus className="mr-2 h-4 w-4" /> Add Subject</Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Add New Subject</DialogTitle>
+                  <DialogDescription>
+                    Enter the details for the new subject.
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleAddSubject} className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="name">Name</Label>
+                    <Input id="name" value={newSubject.name} onChange={handleInputChange} required />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="type">Type</Label>
+                      <Select onValueChange={(v) => handleSelectChange(v, "type")} value={newSubject.type}>
+                        <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="theory">Theory</SelectItem>
+                          <SelectItem value="lab">Lab</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="priority">Priority</Label>
+                      <Select onValueChange={(v) => handleSelectChange(v, "priority")} value={newSubject.priority}>
+                        <SelectTrigger><SelectValue placeholder="Select priority" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="high">High</SelectItem>
+                          <SelectItem value="medium">Medium</SelectItem>
+                          <SelectItem value="low">Low</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="department">Department</Label>
+                    <Select onValueChange={(v) => handleSelectChange(v, "department")} value={newSubject.department}>
+                      <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
+                      <SelectContent>
+                        {departments.map((dept) => (
+                          <SelectItem key={dept.name} value={dept.name}>{dept.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="class_name">Class</Label>
+                      <Input id="class_name" value={newSubject.class_name} onChange={handleInputChange} placeholder="e.g. FYBCA" />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="section">Section</Label>
+                      <Input id="section" value={newSubject.section} onChange={handleInputChange} placeholder="e.g. A" />
+                    </div>
+                  </div>
+                  <Button type="submit" className="w-full mt-4">Add Subject</Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Priority</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {subjectList.map((subject) => (
-                <TableRow key={subject.id}>
-                  <TableCell className="font-medium">{subject.name}</TableCell>
-                  <TableCell>{subject.type}</TableCell>
-                  <TableCell>{subject.priority}</TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm">Edit</Button>
-                    <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700">Delete</Button>
-                  </TableCell>
+        {loading ? (
+          <div className="flex justify-center py-10"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>
+        ) : (
+          <div className="rounded-md border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Subject Name</TableHead>
+                  <TableHead>Dept / Class / Sec</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Priority</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {subjectList.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">No subjects found.</TableCell>
+                  </TableRow>
+                ) : (
+                  subjectList.map((subject) => (
+                    <TableRow key={subject.id}>
+                      <TableCell className="font-medium">{subject.name}</TableCell>
+                      <TableCell>
+                        <span className="text-xs text-muted-foreground">
+                          {subject.department || "-"} / {subject.class_name || "-"} / {subject.section || "-"}
+                        </span>
+                      </TableCell>
+                      <TableCell className="capitalize">{subject.type}</TableCell>
+                      <TableCell className="capitalize">{subject.priority}</TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" onClick={() => handleDeleteSubject(subject.id)}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
