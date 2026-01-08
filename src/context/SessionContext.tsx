@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { showSuccess, showError } from '@/utils/toast';
 
 interface SessionContextType {
@@ -22,81 +22,80 @@ export const SessionContextProvider = ({ children }: { children: ReactNode }) =>
   const [profile, setProfile] = useState<{ role: string | null; class_name: string | null; first_name: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const fetchProfile = async (userId: string) => {
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .select('role, class_name, first_name')
+      .eq('id', userId)
+      .single();
+
+    if (profileError && profileError.code !== 'PGRST116') {
+      console.error('Error fetching profile:', profileError);
+      return null;
+    }
+    return profileData;
+  };
 
   useEffect(() => {
-    let isMounted = true; // Flag to prevent state updates on unmounted component
-
-    const fetchProfile = async (userId: string) => {
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('role, class_name, first_name')
-        .eq('id', userId)
-        .single();
-
-      if (!isMounted) return;
-
-      if (profileError && profileError.code !== 'PGRST116') { // PGRST116 means no rows found
-        console.error('Error fetching profile:', profileError);
-        showError('Failed to load user profile.');
-        setProfile(null);
-      } else if (profileData) {
+    // Initial session check
+    const initSession = async () => {
+      const { data: { session: initialSession } } = await supabase.auth.getSession();
+      
+      if (initialSession) {
+        setSession(initialSession);
+        setUser(initialSession.user);
+        const profileData = await fetchProfile(initialSession.user.id);
         setProfile(profileData);
-        return profileData; // Return profile data for redirection logic
-      } else {
-        setProfile(null); // No profile found
+        
+        // Handle redirect only if we are on login page
+        if (location.pathname === '/login' || location.pathname === '/') {
+          if (profileData?.role === 'admin' || profileData?.role === 'faculty') {
+            navigate('/dashboard');
+          } else {
+            navigate('/student-dashboard');
+          }
+        }
       }
-      return null;
+      setLoading(false);
     };
+
+    initSession();
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
-        if (!isMounted) return;
-
         setSession(currentSession);
         setUser(currentSession?.user || null);
 
         if (currentSession?.user) {
-          const fetchedProfile = await fetchProfile(currentSession.user.id);
-          if (!isMounted) return;
-
-          // Redirect based on role
-          if (fetchedProfile?.role === 'admin' || fetchedProfile?.role === 'faculty') {
-            navigate('/dashboard');
-          } else if (fetchedProfile?.role === 'student') {
-            navigate('/student-dashboard');
-          } else {
-            // Default to student dashboard if role is not explicitly admin/faculty
-            navigate('/student-dashboard');
+          const profileData = await fetchProfile(currentSession.user.id);
+          setProfile(profileData);
+          
+          if (event === 'SIGNED_IN') {
+            if (profileData?.role === 'admin' || profileData?.role === 'faculty') {
+              navigate('/dashboard');
+            } else {
+              navigate('/student-dashboard');
+            }
           }
         } else {
           setProfile(null);
-          navigate('/login');
+          if (event === 'SIGNED_OUT') {
+            navigate('/login');
+          }
         }
-        setLoading(false);
       }
     );
 
-    // Cleanup function
     return () => {
-      isMounted = false;
       authListener.subscription.unsubscribe();
     };
-  }, [navigate]);
+  }, [navigate]); // Only run once on mount
 
   const signOut = async () => {
-    setLoading(true);
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error('Error signing out:', error);
-      showError('Failed to sign out.');
-    } else {
-      showSuccess('Successfully signed out.');
-      setSession(null);
-      setUser(null);
-      setProfile(null);
-      navigate('/login');
-    }
-    setLoading(false);
+    await supabase.auth.signOut();
+    showSuccess('Successfully signed out.');
   };
 
   return (
