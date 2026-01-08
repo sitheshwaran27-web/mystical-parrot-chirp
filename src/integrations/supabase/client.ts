@@ -1,13 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl) {
-  throw new Error('VITE_SUPABASE_URL is required.');
-}
-if (!supabaseAnonKey) {
-  throw new Error('VITE_SUPABASE_ANON_KEY is required.');
-}
+// Using credentials directly to ensure connection reliability
+const supabaseUrl = 'https://bcfkkrfrzutbmhdbosaa.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJjZmtrcmZyenV0Ym1oZGJvc2FhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc0NDY3NDIsImV4cCI6MjA4MzAyMjc0Mn0.ZdvPAHk-vxlVQuO39q4wU0Zb05xrjnlRJEiJOdMGmY0';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
