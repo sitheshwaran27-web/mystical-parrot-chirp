@@ -13,6 +13,8 @@ import { Loader2, Play, CheckCircle2, AlertCircle, RefreshCw } from "lucide-reac
 interface Batch {
   id: string;
   name: string;
+  year: number;
+  semester: number;
 }
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
@@ -36,7 +38,7 @@ const TimetableGeneration = () => {
 
   const fetchBatches = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from("batches").select("id, name");
+    const { data, error } = await supabase.from("batches").select("id, name, year, semester");
     if (error) {
       toast({
         title: "Error",
@@ -67,15 +69,26 @@ const TimetableGeneration = () => {
     setStatus("Fetching resources...");
 
     try {
-      // 1. Fetch resources
+      // 1. Fetch resources - Filtering subjects by batch criteria
       const [subjectsRes, facultyRes, roomsRes] = await Promise.all([
-        supabase.from("subjects").select("id, name, type"),
+        supabase
+          .from("subjects")
+          .select("id, name, type")
+          .eq("year", batch.year)
+          .eq("semester", batch.semester),
         supabase.from("faculty").select("id, name"),
         supabase.from("rooms").select("id, name")
       ]);
 
-      if (!subjectsRes.data?.length || !facultyRes.data?.length || !roomsRes.data?.length) {
-        throw new Error("Insufficient resources (subjects, faculty, or rooms) to generate a timetable.");
+      // Specific error handling for missing resources
+      if (!subjectsRes.data || subjectsRes.data.length === 0) {
+        throw new Error(`No subjects found for Year ${batch.year}, Semester ${batch.semester}. Please add subjects for this class first.`);
+      }
+      if (!facultyRes.data || facultyRes.data.length === 0) {
+        throw new Error("No faculty members found. Please add faculty in Faculty Management first.");
+      }
+      if (!roomsRes.data || roomsRes.data.length === 0) {
+        throw new Error("No rooms found. Please add rooms in Room Management first.");
       }
 
       setProgress(20);
@@ -92,17 +105,21 @@ const TimetableGeneration = () => {
       setProgress(40);
       setStatus("Assigning slots...");
 
-      // 3. Simple generation logic: Fill slots sequentially with available resources
+      // 3. Generation logic: Fill slots with filtered subjects
       const newSlots = [];
       let subjectIndex = 0;
       let facultyIndex = 0;
       let roomIndex = 0;
 
+      const availableSubjects = subjectsRes.data;
+      const availableFaculty = facultyRes.data;
+      const availableRooms = roomsRes.data;
+
       for (const day of DAYS) {
         for (const timeSlot of TIME_SLOTS) {
-          const subject = subjectsRes.data[subjectIndex % subjectsRes.data.length];
-          const faculty = facultyRes.data[facultyIndex % facultyRes.data.length];
-          const room = roomsRes.data[roomIndex % roomsRes.data.length];
+          const subject = availableSubjects[subjectIndex % availableSubjects.length];
+          const faculty = availableFaculty[facultyIndex % availableFaculty.length];
+          const room = availableRooms[roomIndex % availableRooms.length];
 
           newSlots.push({
             day,
@@ -169,7 +186,7 @@ const TimetableGeneration = () => {
             <CardHeader>
               <CardTitle>Generator Settings</CardTitle>
               <CardDescription>
-                Select a target batch to generate a fresh automated schedule. This will overwrite any existing timetable for that batch.
+                Select a target batch to generate a fresh automated schedule. This will only use subjects assigned to the batch's Year and Semester.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -182,7 +199,7 @@ const TimetableGeneration = () => {
                   <SelectContent>
                     {batches.map((batch) => (
                       <SelectItem key={batch.id} value={batch.id}>
-                        {batch.name}
+                        {batch.name} (Year: {batch.year}, Sem: {batch.semester})
                       </SelectItem>
                     ))}
                   </SelectContent>
