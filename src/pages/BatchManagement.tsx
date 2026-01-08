@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,32 +28,71 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { Loader2, Trash2 } from "lucide-react";
 
-// Placeholder for Batch data
 interface Batch {
   id: string;
   name: string;
-  department: string;
+  department_id: string | null;
   year: number;
   semester: number;
+  departments?: { name: string } | null;
 }
 
-const mockDepartments = ["Computer Science Engineering", "Electrical Engineering"];
+interface Department {
+  id: string;
+  name: string;
+}
 
 const BatchManagement = () => {
-  const [batches, setBatches] = React.useState<Batch[]>([
-    { id: "b1", name: "CSE 2025 Batch A", department: "Computer Science Engineering", year: 2025, semester: 1 },
-    { id: "b2", name: "EEE 2024 Batch B", department: "Electrical Engineering", year: 2024, semester: 2 },
-  ]);
-  const [newBatch, setNewBatch] = React.useState({
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newBatch, setNewBatch] = useState({
     name: "",
-    department: "",
+    department_id: "",
     year: new Date().getFullYear(),
     semester: 1,
   });
-  const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
+
+  const fetchData = async () => {
+    setLoading(true);
+    // Fetch departments
+    const { data: deptData } = await supabase.from("departments").select("id, name");
+    if (deptData) setDepartments(deptData);
+
+    // Fetch batches with department names
+    const { data: batchData, error } = await supabase
+      .from("batches")
+      .select(`
+        id, 
+        name, 
+        department_id, 
+        year, 
+        semester,
+        departments (name)
+      `)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch batches.",
+        variant: "destructive",
+      });
+    } else {
+      setBatches(batchData as any || []);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -63,13 +102,13 @@ const BatchManagement = () => {
     }));
   };
 
-  const handleSelectChange = (value: string, id: string) => {
-    setNewBatch((prev) => ({ ...prev, [id]: value }));
+  const handleSelectChange = (value: string) => {
+    setNewBatch((prev) => ({ ...prev, department_id: value }));
   };
 
-  const handleAddBatch = (e: React.FormEvent) => {
+  const handleAddBatch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newBatch.name || !newBatch.department || newBatch.year <= 0 || newBatch.semester <= 0) {
+    if (!newBatch.name || !newBatch.department_id || newBatch.year <= 0 || newBatch.semester <= 0) {
       toast({
         title: "Error",
         description: "Please fill in all fields correctly.",
@@ -78,22 +117,51 @@ const BatchManagement = () => {
       return;
     }
 
-    const id = `b${batches.length + 1}`;
-    setBatches((prev) => [...prev, { id, ...newBatch }]);
-    setNewBatch({ name: "", department: "", year: new Date().getFullYear(), semester: 1 });
-    setIsDialogOpen(false);
-    toast({
-      title: "Success",
-      description: "Batch added successfully.",
-    });
+    const { error } = await supabase.from("batches").insert([
+      {
+        name: newBatch.name,
+        department_id: newBatch.department_id,
+        year: newBatch.year,
+        semester: newBatch.semester,
+      },
+    ]);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Success",
+        description: "Batch added successfully.",
+      });
+      setIsDialogOpen(false);
+      setNewBatch({ name: "", department_id: "", year: new Date().getFullYear(), semester: 1 });
+      fetchData();
+    }
+  };
+
+  const handleDeleteBatch = async (id: string) => {
+    const { error } = await supabase.from("batches").delete().eq("id", id);
+    if (error) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({ title: "Deleted", description: "Batch removed." });
+      fetchData();
+    }
   };
 
   return (
     <DashboardLayout>
       <div className="container mx-auto py-8">
-        <h1 className="text-3xl font-bold mb-8">Batch Management</h1>
-
-        <div className="flex justify-end mb-4">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold">Batch Management</h1>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button>Add Batch</Button>
@@ -106,67 +174,58 @@ const BatchManagement = () => {
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleAddBatch} className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="name" className="text-right">
-                    Name
-                  </Label>
+                <div className="grid gap-2">
+                  <Label htmlFor="name">Name</Label>
                   <Input
                     id="name"
                     value={newBatch.name}
                     onChange={handleInputChange}
-                    className="col-span-3"
                     required
                   />
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="department" className="text-right">
-                    Department
-                  </Label>
+                <div className="grid gap-2">
+                  <Label htmlFor="department">Department</Label>
                   <Select
-                    onValueChange={(value) => handleSelectChange(value, "department")}
-                    value={newBatch.department}
+                    onValueChange={handleSelectChange}
+                    value={newBatch.department_id}
                     required
                   >
-                    <SelectTrigger className="col-span-3">
+                    <SelectTrigger>
                       <SelectValue placeholder="Select department" />
                     </SelectTrigger>
                     <SelectContent>
-                      {mockDepartments.map((dept) => (
-                        <SelectItem key={dept} value={dept}>
-                          {dept}
+                      {departments.map((dept) => (
+                        <SelectItem key={dept.id} value={dept.id}>
+                          {dept.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="year" className="text-right">
-                    Year
-                  </Label>
-                  <Input
-                    id="year"
-                    type="number"
-                    value={newBatch.year}
-                    onChange={handleInputChange}
-                    className="col-span-3"
-                    required
-                    min="2000"
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="semester" className="text-right">
-                    Semester
-                  </Label>
-                  <Input
-                    id="semester"
-                    type="number"
-                    value={newBatch.semester}
-                    onChange={handleInputChange}
-                    className="col-span-3"
-                    required
-                    min="1"
-                    max="8"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="year">Year</Label>
+                    <Input
+                      id="year"
+                      type="number"
+                      value={newBatch.year}
+                      onChange={handleInputChange}
+                      required
+                      min="2000"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="semester">Semester</Label>
+                    <Input
+                      id="semester"
+                      type="number"
+                      value={newBatch.semester}
+                      onChange={handleInputChange}
+                      required
+                      min="1"
+                      max="8"
+                    />
+                  </div>
                 </div>
                 <Button type="submit" className="w-full mt-4">
                   Add Batch
@@ -176,33 +235,52 @@ const BatchManagement = () => {
           </Dialog>
         </div>
 
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Department</TableHead>
-                <TableHead>Year</TableHead>
-                <TableHead>Semester</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {batches.map((batch) => (
-                <TableRow key={batch.id}>
-                  <TableCell className="font-medium">{batch.name}</TableCell>
-                  <TableCell>{batch.department}</TableCell>
-                  <TableCell>{batch.year}</TableCell>
-                  <TableCell>{batch.semester}</TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm">Edit</Button>
-                    <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700">Delete</Button>
-                  </TableCell>
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <Loader2 className="animate-spin h-8 w-8 text-primary" />
+          </div>
+        ) : (
+          <div className="rounded-md border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Department</TableHead>
+                  <TableHead>Year</TableHead>
+                  <TableHead>Semester</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {batches.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
+                      No batches found.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  batches.map((batch) => (
+                    <TableRow key={batch.id}>
+                      <TableCell className="font-medium">{batch.name}</TableCell>
+                      <TableCell>{batch.departments?.name || "N/A"}</TableCell>
+                      <TableCell>{batch.year}</TableCell>
+                      <TableCell>{batch.semester}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteBatch(batch.id)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
