@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Trash2, Upload, FileSpreadsheet, RefreshCw } from "lucide-react";
+import { Loader2, Trash2, Upload, FileSpreadsheet, RefreshCw, Edit } from "lucide-react";
 import * as XLSX from "xlsx";
 
 interface Faculty {
@@ -42,18 +42,21 @@ interface Faculty {
   designation: string | null;
 }
 
+const initialFacultyState = {
+  id: "",
+  name: "",
+  email: "",
+  priority: "junior",
+  department: "",
+  designation: "",
+};
+
 const FacultyManagement = () => {
   const [facultyList, setFacultyList] = useState<Faculty[]>([]);
   const [departments, setDepartments] = useState<{ name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
-  const [newFaculty, setNewFaculty] = useState({
-    name: "",
-    email: "",
-    priority: "junior",
-    department: "",
-    designation: "",
-  });
+  const [currentFaculty, setCurrentFaculty] = useState(initialFacultyState);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -89,16 +92,28 @@ const FacultyManagement = () => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
-    setNewFaculty((prev) => ({ ...prev, [id]: value }));
+    setCurrentFaculty((prev) => ({ ...prev, [id]: value }));
   };
 
   const handleSelectChange = (value: string, id: string) => {
-    setNewFaculty((prev) => ({ ...prev, [id]: value }));
+    setCurrentFaculty((prev) => ({ ...prev, [id]: value }));
   };
 
-  const handleAddFaculty = async (e: React.FormEvent) => {
+  const handleEditFaculty = (faculty: Faculty) => {
+    setCurrentFaculty({
+      id: faculty.id,
+      name: faculty.name,
+      email: faculty.email || "",
+      priority: faculty.priority,
+      department: faculty.department || "",
+      designation: faculty.designation || "",
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleAddOrUpdateFaculty = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newFaculty.name || !newFaculty.email || !newFaculty.department) {
+    if (!currentFaculty.name || !currentFaculty.email || !currentFaculty.department) {
       toast({
         title: "Error",
         description: "Please fill in all required fields.",
@@ -107,15 +122,25 @@ const FacultyManagement = () => {
       return;
     }
 
-    const { error } = await supabase.from("faculty").insert([
-      {
-        name: newFaculty.name,
-        email: newFaculty.email,
-        priority: newFaculty.priority,
-        department: newFaculty.department,
-        designation: newFaculty.designation,
-      },
-    ]);
+    const payload = {
+      name: currentFaculty.name,
+      email: currentFaculty.email,
+      priority: currentFaculty.priority,
+      department: currentFaculty.department,
+      designation: currentFaculty.designation,
+    };
+
+    let error = null;
+    if (currentFaculty.id) {
+      const { error: updateError } = await supabase
+        .from("faculty")
+        .update(payload)
+        .eq("id", currentFaculty.id);
+      error = updateError;
+    } else {
+      const { error: insertError } = await supabase.from("faculty").insert([payload]);
+      error = insertError;
+    }
 
     if (error) {
       toast({
@@ -126,10 +151,10 @@ const FacultyManagement = () => {
     } else {
       toast({
         title: "Success",
-        description: "Faculty member added successfully.",
+        description: currentFaculty.id ? "Faculty member updated." : "Faculty member added.",
       });
       setIsDialogOpen(false);
-      setNewFaculty({ name: "", email: "", priority: "junior", department: "", designation: "" });
+      setCurrentFaculty(initialFacultyState);
       fetchFaculty();
     }
   };
@@ -175,16 +200,15 @@ const FacultyManagement = () => {
         })).filter(f => f.name && f.email);
 
         if (facultyToInsert.length === 0) {
-          throw new Error("No valid faculty data found. Ensure 'name' and 'email' columns are present.");
+          throw new Error("No valid faculty data found.");
         }
 
         const { error } = await supabase.from("faculty").insert(facultyToInsert);
-
         if (error) throw error;
 
         toast({
           title: "Bulk Upload Success",
-          description: `Successfully uploaded ${facultyToInsert.length} faculty members.`,
+          description: `Successfully uploaded ${facultyToInsert.length} members.`,
         });
         fetchFaculty();
       } catch (error: any) {
@@ -203,25 +227,12 @@ const FacultyManagement = () => {
 
   const downloadTemplate = () => {
     const template = [
-      { 
-        name: "John Doe", 
-        email: "john@example.com", 
-        priority: "senior", 
-        department: "Computer Science", 
-        designation: "Professor" 
-      },
-      { 
-        name: "Jane Smith", 
-        email: "jane@example.com", 
-        priority: "junior", 
-        department: "Mathematics", 
-        designation: "Assistant Professor" 
-      }
+      { name: "John Doe", email: "john@example.com", priority: "senior", department: "Computer Science", designation: "Professor" }
     ];
     const ws = XLSX.utils.json_to_sheet(template);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Faculty Template");
-    XLSX.writeFile(wb, "Faculty_Upload_Template.xlsx");
+    XLSX.utils.book_append_sheet(wb, ws, "Template");
+    XLSX.writeFile(wb, "Faculty_Template.xlsx");
   };
 
   return (
@@ -241,68 +252,42 @@ const FacultyManagement = () => {
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Bulk Upload Faculty</DialogTitle>
-                  <DialogDescription>
-                    Upload an Excel file (.xls, .xlsx) with faculty details.
-                  </DialogDescription>
+                  <DialogDescription>Upload an Excel file with faculty details.</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
-                  <div className="grid gap-2">
-                    <Label>Instructions</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Columns: <strong>name, email, priority (senior/junior), department, designation</strong>.
-                    </p>
-                    <Button variant="link" onClick={downloadTemplate} className="justify-start p-0 h-auto">
-                      <FileSpreadsheet className="mr-2 h-4 w-4" /> Download Template
-                    </Button>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="bulk-file-faculty">Choose File</Label>
-                    <Input 
-                      id="bulk-file-faculty" 
-                      type="file" 
-                      accept=".xls,.xlsx" 
-                      onChange={handleBulkUpload} 
-                      disabled={isUploading}
-                      ref={fileInputRef}
-                    />
-                  </div>
-                  {isUploading && (
-                    <div className="flex items-center justify-center p-2">
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      <span>Processing...</span>
-                    </div>
-                  )}
+                  <Button variant="link" onClick={downloadTemplate} className="p-0 h-auto">
+                    <FileSpreadsheet className="mr-2 h-4 w-4" /> Download Template
+                  </Button>
+                  <Input type="file" accept=".xls,.xlsx" onChange={handleBulkUpload} disabled={isUploading} ref={fileInputRef} />
                 </div>
               </DialogContent>
             </Dialog>
 
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setCurrentFaculty(initialFacultyState); }}>
               <DialogTrigger asChild>
-                <Button>Add Faculty</Button>
+                <Button><Plus className="mr-2 h-4 w-4" /> Add Faculty</Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                  <DialogTitle>Add New Faculty</DialogTitle>
-                  <DialogDescription>
-                    Enter the details for the new faculty member.
-                  </DialogDescription>
+                  <DialogTitle>{currentFaculty.id ? "Edit Faculty" : "Add New Faculty"}</DialogTitle>
+                  <DialogDescription>Enter the details for the faculty member.</DialogDescription>
                 </DialogHeader>
-                <form onSubmit={handleAddFaculty} className="grid gap-4 py-4">
+                <form onSubmit={handleAddOrUpdateFaculty} className="grid gap-4 py-4">
                   <div className="grid gap-2">
                     <Label htmlFor="name">Name</Label>
-                    <Input id="name" value={newFaculty.name} onChange={handleInputChange} required />
+                    <Input id="name" value={currentFaculty.name} onChange={handleInputChange} required />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="email">Email</Label>
-                    <Input id="email" type="email" value={newFaculty.email} onChange={handleInputChange} required />
+                    <Input id="email" type="email" value={currentFaculty.email} onChange={handleInputChange} required />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="designation">Designation</Label>
-                    <Input id="designation" value={newFaculty.designation} onChange={handleInputChange} />
+                    <Input id="designation" value={currentFaculty.designation} onChange={handleInputChange} />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="priority">Priority</Label>
-                    <Select onValueChange={(v) => handleSelectChange(v, "priority")} value={newFaculty.priority}>
+                    <Select onValueChange={(v) => handleSelectChange(v, "priority")} value={currentFaculty.priority}>
                       <SelectTrigger><SelectValue placeholder="Select priority" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="senior">Senior</SelectItem>
@@ -312,7 +297,7 @@ const FacultyManagement = () => {
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="department">Department</Label>
-                    <Select onValueChange={(v) => handleSelectChange(v, "department")} value={newFaculty.department}>
+                    <Select onValueChange={(v) => handleSelectChange(v, "department")} value={currentFaculty.department}>
                       <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
                       <SelectContent>
                         {departments.map((dept) => (
@@ -321,7 +306,7 @@ const FacultyManagement = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button type="submit" className="w-full mt-4">Add Faculty</Button>
+                  <Button type="submit" className="w-full mt-4">{currentFaculty.id ? "Save Changes" : "Add Faculty"}</Button>
                 </form>
               </DialogContent>
             </Dialog>
@@ -344,9 +329,7 @@ const FacultyManagement = () => {
               </TableHeader>
               <TableBody>
                 {facultyList.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">No faculty found.</TableCell>
-                  </TableRow>
+                  <TableRow><TableCell colSpan={5} className="text-center py-10 text-muted-foreground">No faculty found.</TableCell></TableRow>
                 ) : (
                   facultyList.map((faculty) => (
                     <TableRow key={faculty.id}>
@@ -357,7 +340,10 @@ const FacultyManagement = () => {
                       <TableCell>{faculty.email}</TableCell>
                       <TableCell className="capitalize">{faculty.priority}</TableCell>
                       <TableCell>{faculty.department}</TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right space-x-2">
+                        <Button variant="ghost" size="icon" onClick={() => handleEditFaculty(faculty)}>
+                          <Edit className="h-4 w-4 text-blue-500" />
+                        </Button>
                         <Button variant="ghost" size="icon" onClick={() => handleDeleteFaculty(faculty.id)}>
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
