@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Trash2, Upload, FileSpreadsheet, RefreshCw, Edit, Plus } from "lucide-react";
@@ -58,6 +59,7 @@ const FacultyManagement = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [currentFaculty, setCurrentFaculty] = useState(initialFacultyState);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -170,6 +172,43 @@ const FacultyManagement = () => {
     } else {
       toast({ title: "Deleted", description: "Faculty removed." });
       fetchFaculty();
+      setSelectedIds(selectedIds.filter(selectedId => selectedId !== id));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    
+    const { error } = await supabase.from("faculty").delete().in("id", selectedIds);
+    if (error) {
+      toast({
+        title: "Bulk Delete Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Success",
+        description: `Successfully deleted ${selectedIds.length} faculty members.`,
+      });
+      setSelectedIds([]);
+      fetchFaculty();
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === facultyList.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(facultyList.map(f => f.id));
+    }
+  };
+
+  const toggleSelectRow = (id: string) => {
+    if (selectedIds.includes(id)) {
+      setSelectedIds(selectedIds.filter(i => i !== id));
+    } else {
+      setSelectedIds([...selectedIds, id]);
     }
   };
 
@@ -239,11 +278,24 @@ const FacultyManagement = () => {
     <DashboardLayout>
       <div className="container mx-auto py-8">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold">Faculty Management</h1>
+          <div>
+            <h1 className="text-3xl font-bold">Faculty Management</h1>
+            {selectedIds.length > 0 && (
+              <p className="text-sm text-muted-foreground mt-1">
+                {selectedIds.length} members selected
+              </p>
+            )}
+          </div>
           <div className="flex gap-2">
             <Button variant="outline" size="icon" onClick={fetchFaculty} disabled={loading}>
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             </Button>
+
+            {selectedIds.length > 0 && (
+              <Button variant="destructive" onClick={handleBulkDelete}>
+                <Trash2 className="mr-2 h-4 w-4" /> Delete Selected
+              </Button>
+            )}
 
             <Dialog>
               <DialogTrigger asChild>
@@ -320,6 +372,12 @@ const FacultyManagement = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[50px]">
+                    <Checkbox 
+                      checked={facultyList.length > 0 && selectedIds.length === facultyList.length}
+                      onCheckedChange={toggleSelectAll}
+                    />
+                  </TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Priority</TableHead>
@@ -329,10 +387,16 @@ const FacultyManagement = () => {
               </TableHeader>
               <TableBody>
                 {facultyList.length === 0 ? (
-                  <TableRow><TableCell colSpan={5} className="text-center py-10 text-muted-foreground">No faculty found.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center py-10 text-muted-foreground">No faculty found.</TableCell></TableRow>
                 ) : (
                   facultyList.map((faculty) => (
-                    <TableRow key={faculty.id}>
+                    <TableRow key={faculty.id} className={selectedIds.includes(faculty.id) ? "bg-muted/50" : ""}>
+                      <TableCell>
+                        <Checkbox 
+                          checked={selectedIds.includes(faculty.id)}
+                          onCheckedChange={() => toggleSelectRow(faculty.id)}
+                        />
+                      </TableCell>
                       <TableCell className="font-medium">
                         {faculty.name}
                         {faculty.designation && <p className="text-xs text-muted-foreground font-normal">{faculty.designation}</p>}
