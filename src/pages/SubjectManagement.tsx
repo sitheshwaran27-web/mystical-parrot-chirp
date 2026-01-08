@@ -181,19 +181,24 @@ const SubjectManagement = () => {
           throw new Error("The uploaded file is empty.");
         }
 
-        // Map Excel columns to database columns
-        const subjectsToInsert = json.map((row: any) => ({
-          name: row.name || row.Name || "",
-          type: (row.type || row.Type || "theory").toLowerCase(),
-          department: row.department || row.Department || null,
-          class_name: row.class_name || row.Class || null,
-          section: row.section || row.Section || null,
-          year: row.year || row.Year ? parseInt(row.year || row.Year) : null,
-          semester: row.semester || row.Semester ? parseInt(row.semester || row.Semester) : null,
-        })).filter(s => s.name && s.type && s.department);
+        // Map Excel columns to database columns with more flexibility
+        const subjectsToInsert = json.map((row: any) => {
+          const yearRaw = row.year || row.Year || row.YEAR;
+          const semRaw = row.semester || row.Semester || row.SEMESTER;
+          
+          return {
+            name: row.name || row.Name || row.NAME || "",
+            type: (row.type || row.Type || row.TYPE || "theory").toLowerCase(),
+            department: row.department || row.Department || row.DEPARTMENT || null,
+            class_name: row.class_name || row.class || row.Class || row.CLASS || null,
+            section: row.section || row.Section || row.SECTION || null,
+            year: yearRaw ? parseInt(String(yearRaw)) : null,
+            semester: semRaw ? parseInt(String(semRaw)) : null,
+          };
+        }).filter(s => s.name && s.type && s.department);
 
         if (subjectsToInsert.length === 0) {
-          throw new Error("No valid subjects found. Ensure columns 'name', 'type', and 'department' are present.");
+          throw new Error("No valid subjects found. Ensure columns 'name', 'type', 'department', 'year', 'semester', 'class_name', and 'section' are used correctly.");
         }
 
         const { error } = await supabase.from("subjects").insert(subjectsToInsert);
@@ -221,7 +226,24 @@ const SubjectManagement = () => {
 
   const downloadTemplate = () => {
     const template = [
-      { name: "Subject Name", type: "theory", department: "Computer Science", class_name: "FYBCA", section: "A", year: 2024, semester: 1 }
+      { 
+        name: "Data Structures", 
+        type: "theory", 
+        department: "Computer Science", 
+        class_name: "FYBCA", 
+        section: "A", 
+        year: 2024, 
+        semester: 1 
+      },
+      { 
+        name: "Java Programming Lab", 
+        type: "lab", 
+        department: "Computer Science", 
+        class_name: "SYBCA", 
+        section: "B", 
+        year: 2024, 
+        semester: 3 
+      }
     ];
     const ws = XLSX.utils.json_to_sheet(template);
     const wb = XLSX.utils.book_new();
@@ -254,11 +276,10 @@ const SubjectManagement = () => {
                   <div className="grid gap-2">
                     <Label>Instructions</Label>
                     <p className="text-sm text-muted-foreground">
-                      Ensure your file has the following columns: <strong>name, type, department</strong>. 
-                      Optional: class_name, section, year, semester.
+                      Your Excel file <strong>must</strong> include: <strong>name, type, department, year, semester, class_name, section</strong>.
                     </p>
                     <Button variant="link" onClick={downloadTemplate} className="justify-start p-0 h-auto">
-                      <FileSpreadsheet className="mr-2 h-4 w-4" /> Download Template
+                      <FileSpreadsheet className="mr-2 h-4 w-4" /> Download Updated Template
                     </Button>
                   </div>
                   <div className="grid gap-2">
