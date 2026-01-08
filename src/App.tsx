@@ -12,6 +12,7 @@ import RoomManagement from "./pages/RoomManagement";
 import DepartmentManagement from "./pages/DepartmentManagement";
 import BatchManagement from "./pages/BatchManagement";
 import SchedulingRuleManagement from "./pages/SchedulingRuleManagement";
+import TimetableGeneration from "./pages/TimetableGeneration";
 import { SessionContextProvider, useSession } from "./context/SessionContext";
 import React from "react";
 import { Loader2 } from "lucide-react";
@@ -100,6 +101,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["admin"]}>
                   <SchedulingRuleManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/generate-timetable"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <TimetableGeneration />
                 </ProtectedRoute>
               }
             />
