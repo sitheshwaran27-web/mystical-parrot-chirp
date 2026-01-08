@@ -31,9 +31,11 @@ interface Department {
   id: string;
   name: string;
   code: string;
+  year: number | null;
+  semester: number | null;
 }
 
-const initialDeptState = { id: "", name: "", code: "" };
+const initialDeptState = { id: "", name: "", code: "", year: "", semester: "" };
 
 const DepartmentManagement = () => {
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -68,7 +70,13 @@ const DepartmentManagement = () => {
   };
 
   const handleEditDept = (dept: Department) => {
-    setCurrentDept({ id: dept.id, name: dept.name, code: dept.code });
+    setCurrentDept({ 
+      id: dept.id, 
+      name: dept.name, 
+      code: dept.code,
+      year: dept.year ? String(dept.year) : "",
+      semester: dept.semester ? String(dept.semester) : ""
+    });
     setIsDialogOpen(true);
   };
 
@@ -79,7 +87,13 @@ const DepartmentManagement = () => {
       return;
     }
 
-    const payload = { name: currentDept.name, code: currentDept.code };
+    const payload = { 
+      name: currentDept.name, 
+      code: currentDept.code,
+      year: currentDept.year ? parseInt(currentDept.year) : null,
+      semester: currentDept.semester ? parseInt(currentDept.semester) : null,
+    };
+    
     let error = null;
 
     if (currentDept.id) {
@@ -161,6 +175,8 @@ const DepartmentManagement = () => {
         const depts = json.map((row: any) => ({
           name: row.name || row.Name || "",
           code: row.code || row.Code || "",
+          year: row.year || row.Year ? parseInt(row.year || row.Year) : null,
+          semester: row.semester || row.Semester ? parseInt(row.semester || row.Semester) : null,
         })).filter(d => d.name && d.code);
         const { error } = await supabase.from("departments").insert(depts);
         if (error) throw error;
@@ -177,7 +193,7 @@ const DepartmentManagement = () => {
   };
 
   const downloadTemplate = () => {
-    const template = [{ name: "Computer Science", code: "CSE" }];
+    const template = [{ name: "Computer Science", code: "CSE", year: 2024, semester: 1 }];
     const ws = XLSX.utils.json_to_sheet(template);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Template");
@@ -224,8 +240,24 @@ const DepartmentManagement = () => {
                   <DialogDescription>Enter department details.</DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleAddOrUpdateDept} className="grid gap-4 py-4">
-                  <div className="grid gap-2"><Label htmlFor="name">Name</Label><Input id="name" value={currentDept.name} onChange={handleInputChange} required /></div>
-                  <div className="grid gap-2"><Label htmlFor="code">Code</Label><Input id="code" value={currentDept.code} onChange={handleInputChange} required /></div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="name">Name</Label>
+                    <Input id="name" value={currentDept.name} onChange={handleInputChange} required />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="code">Code</Label>
+                    <Input id="code" value={currentDept.code} onChange={handleInputChange} required />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="year">Year</Label>
+                      <Input id="year" type="number" value={currentDept.year} onChange={handleInputChange} placeholder="e.g. 2024" />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="semester">Semester</Label>
+                      <Input id="semester" type="number" value={currentDept.semester} onChange={handleInputChange} placeholder="e.g. 1" />
+                    </div>
+                  </div>
                   <Button type="submit" className="w-full mt-4">{currentDept.id ? "Save Changes" : "Add Department"}</Button>
                 </form>
               </DialogContent>
@@ -245,12 +277,14 @@ const DepartmentManagement = () => {
                   </TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Code</TableHead>
+                  <TableHead>Year</TableHead>
+                  <TableHead>Semester</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {departments.length === 0 ? (
-                  <TableRow><TableCell colSpan={4} className="text-center py-10 text-muted-foreground">No departments found.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center py-10 text-muted-foreground">No departments found.</TableCell></TableRow>
                 ) : (
                   departments.map((dept) => (
                     <TableRow key={dept.id} className={selectedIds.includes(dept.id) ? "bg-muted/50" : ""}>
@@ -262,6 +296,8 @@ const DepartmentManagement = () => {
                       </TableCell>
                       <TableCell className="font-medium">{dept.name}</TableCell>
                       <TableCell>{dept.code}</TableCell>
+                      <TableCell>{dept.year || "-"}</TableCell>
+                      <TableCell>{dept.semester || "-"}</TableCell>
                       <TableCell className="text-right space-x-2">
                         <Button variant="ghost" size="icon" onClick={() => handleEditDept(dept)}><Edit className="h-4 w-4 text-blue-500" /></Button>
                         <Button variant="ghost" size="icon" onClick={() => handleDeleteDepartment(dept.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
