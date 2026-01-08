@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Trash2, Plus, RefreshCw, Upload, FileSpreadsheet } from "lucide-react";
+import { Loader2, Trash2, Plus, RefreshCw, Upload, FileSpreadsheet, Edit } from "lucide-react";
 import * as XLSX from "xlsx";
 
 interface Subject {
@@ -44,23 +44,30 @@ interface Subject {
   semester: number | null;
 }
 
+interface Department {
+  name: string;
+}
+
+const initialSubjectState = {
+  id: "",
+  name: "",
+  type: "theory",
+  department: "",
+  section: "",
+  class_name: "",
+  year: "",
+  semester: "",
+};
+
 const SubjectManagement = () => {
   const [subjectList, setSubjectList] = useState<Subject[]>([]);
-  const [departments, setDepartments] = useState<{ name: string }[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [currentSubject, setCurrentSubject] = useState(initialSubjectState);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [newSubject, setNewSubject] = useState({
-    name: "",
-    type: "theory",
-    department: "",
-    section: "",
-    class_name: "",
-    year: "",
-    semester: "",
-  });
   const { toast } = useToast();
 
   const fetchSubjects = useCallback(async () => {
@@ -94,16 +101,30 @@ const SubjectManagement = () => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
-    setNewSubject((prev) => ({ ...prev, [id]: value }));
+    setCurrentSubject((prev) => ({ ...prev, [id]: value }));
   };
 
-  const handleSelectChange = (value: string, id: string) => {
-    setNewSubject((prev) => ({ ...prev, [id]: value }));
+  const handleSelectChange = (value: string, id: keyof typeof initialSubjectState) => {
+    setCurrentSubject((prev) => ({ ...prev, [id]: value }));
   };
 
-  const handleAddSubject = async (e: React.FormEvent) => {
+  const handleEditSubject = (subject: Subject) => {
+    setCurrentSubject({
+      id: subject.id,
+      name: subject.name,
+      type: subject.type,
+      department: subject.department || "",
+      section: subject.section || "",
+      class_name: subject.class_name || "",
+      year: subject.year ? String(subject.year) : "",
+      semester: subject.semester ? String(subject.semester) : "",
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleAddOrUpdateSubject = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newSubject.name || !newSubject.type || !newSubject.department) {
+    if (!currentSubject.name || !currentSubject.type || !currentSubject.department) {
       toast({
         title: "Error",
         description: "Please fill in all required fields.",
@@ -112,17 +133,30 @@ const SubjectManagement = () => {
       return;
     }
 
-    const { error } = await supabase.from("subjects").insert([
-      {
-        name: newSubject.name,
-        type: newSubject.type,
-        department: newSubject.department,
-        section: newSubject.section,
-        class_name: newSubject.class_name,
-        year: newSubject.year ? parseInt(newSubject.year) : null,
-        semester: newSubject.semester ? parseInt(newSubject.semester) : null,
-      },
-    ]);
+    const payload = {
+      name: currentSubject.name,
+      type: currentSubject.type,
+      department: currentSubject.department,
+      section: currentSubject.section || null,
+      class_name: currentSubject.class_name || null,
+      year: currentSubject.year ? parseInt(currentSubject.year) : null,
+      semester: currentSubject.semester ? parseInt(currentSubject.semester) : null,
+    };
+
+    let error = null;
+
+    if (currentSubject.id) {
+      // Update existing subject
+      const { error: updateError } = await supabase
+        .from("subjects")
+        .update(payload)
+        .eq("id", currentSubject.id);
+      error = updateError;
+    } else {
+      // Add new subject
+      const { error: insertError } = await supabase.from("subjects").insert([payload]);
+      error = insertError;
+    }
 
     if (error) {
       toast({
@@ -133,17 +167,9 @@ const SubjectManagement = () => {
     } else {
       toast({
         title: "Success",
-        description: "Subject added successfully.",
+        description: currentSubject.id ? "Subject updated successfully." : "Subject added successfully.",
       });
-      setNewSubject({ 
-        name: "", 
-        type: "theory", 
-        department: "", 
-        section: "", 
-        class_name: "",
-        year: "",
-        semester: "",
-      });
+      setCurrentSubject(initialSubjectState);
       setIsDialogOpen(false);
       fetchSubjects();
     }
@@ -303,25 +329,33 @@ const SubjectManagement = () => {
               </DialogContent>
             </Dialog>
 
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <Dialog 
+              open={isDialogOpen} 
+              onOpenChange={(open) => {
+                setIsDialogOpen(open);
+                if (!open) {
+                  setCurrentSubject(initialSubjectState); // Reset form on close
+                }
+              }}
+            >
               <DialogTrigger asChild>
-                <Button><Plus className="mr-2 h-4 w-4" /> Add Subject</Button>
+                <Button onClick={() => setCurrentSubject(initialSubjectState)}><Plus className="mr-2 h-4 w-4" /> Add Subject</Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                  <DialogTitle>Add New Subject</DialogTitle>
+                  <DialogTitle>{currentSubject.id ? "Edit Subject" : "Add New Subject"}</DialogTitle>
                   <DialogDescription>
-                    Enter the details for the new subject.
+                    Enter the details for the subject.
                   </DialogDescription>
                 </DialogHeader>
-                <form onSubmit={handleAddSubject} className="grid gap-4 py-4">
+                <form onSubmit={handleAddOrUpdateSubject} className="grid gap-4 py-4">
                   <div className="grid gap-2">
                     <Label htmlFor="name">Name</Label>
-                    <Input id="name" value={newSubject.name} onChange={handleInputChange} required />
+                    <Input id="name" value={currentSubject.name} onChange={handleInputChange} required />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="type">Type</Label>
-                    <Select onValueChange={(v) => handleSelectChange(v, "type")} value={newSubject.type}>
+                    <Select onValueChange={(v) => handleSelectChange(v, "type")} value={currentSubject.type}>
                       <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="theory">Theory</SelectItem>
@@ -331,7 +365,7 @@ const SubjectManagement = () => {
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="department">Department</Label>
-                    <Select onValueChange={(v) => handleSelectChange(v, "department")} value={newSubject.department}>
+                    <Select onValueChange={(v) => handleSelectChange(v, "department")} value={currentSubject.department}>
                       <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
                       <SelectContent>
                         {departments.map((dept) => (
@@ -343,24 +377,26 @@ const SubjectManagement = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label htmlFor="class_name">Class</Label>
-                      <Input id="class_name" value={newSubject.class_name} onChange={handleInputChange} placeholder="e.g. FYBCA" />
+                      <Input id="class_name" value={currentSubject.class_name} onChange={handleInputChange} placeholder="e.g. FYBCA" />
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="section">Section</Label>
-                      <Input id="section" value={newSubject.section} onChange={handleInputChange} placeholder="e.g. A" />
+                      <Input id="section" value={currentSubject.section} onChange={handleInputChange} placeholder="e.g. A" />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label htmlFor="year">Year</Label>
-                      <Input id="year" type="number" value={newSubject.year} onChange={handleInputChange} placeholder="e.g. 2024" />
+                      <Input id="year" type="number" value={currentSubject.year} onChange={handleInputChange} placeholder="e.g. 2024" />
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="semester">Semester</Label>
-                      <Input id="semester" type="number" value={newSubject.semester} onChange={handleInputChange} placeholder="e.g. 1" />
+                      <Input id="semester" type="number" value={currentSubject.semester} onChange={handleInputChange} placeholder="e.g. 1" />
                     </div>
                   </div>
-                  <Button type="submit" className="w-full mt-4">Add Subject</Button>
+                  <Button type="submit" className="w-full mt-4">
+                    {currentSubject.id ? "Save Changes" : "Add Subject"}
+                  </Button>
                 </form>
               </DialogContent>
             </Dialog>
@@ -401,7 +437,10 @@ const SubjectManagement = () => {
                         </span>
                       </TableCell>
                       <TableCell className="capitalize">{subject.type}</TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right space-x-2">
+                        <Button variant="ghost" size="icon" onClick={() => handleEditSubject(subject)}>
+                          <Edit className="h-4 w-4 text-blue-500" />
+                        </Button>
                         <Button variant="ghost" size="icon" onClick={() => handleDeleteSubject(subject.id)}>
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
