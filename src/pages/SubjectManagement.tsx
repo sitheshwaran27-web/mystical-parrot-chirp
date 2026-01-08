@@ -36,7 +36,6 @@ interface Subject {
   id: string;
   name: string;
   type: string;
-  priority: string;
   department: string | null;
   section: string | null;
   class_name: string | null;
@@ -50,7 +49,6 @@ const SubjectManagement = () => {
   const [newSubject, setNewSubject] = useState({
     name: "",
     type: "theory",
-    priority: "medium",
     department: "",
     section: "",
     class_name: "",
@@ -110,7 +108,6 @@ const SubjectManagement = () => {
       {
         name: newSubject.name,
         type: newSubject.type,
-        priority: newSubject.priority,
         department: newSubject.department,
         section: newSubject.section,
         class_name: newSubject.class_name,
@@ -131,7 +128,6 @@ const SubjectManagement = () => {
       setNewSubject({ 
         name: "", 
         type: "theory", 
-        priority: "medium", 
         department: "", 
         section: "", 
         class_name: "" 
@@ -180,28 +176,15 @@ const SubjectManagement = () => {
                     <Label htmlFor="name">Name</Label>
                     <Input id="name" value={newSubject.name} onChange={handleInputChange} required />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="type">Type</Label>
-                      <Select onValueChange={(v) => handleSelectChange(v, "type")} value={newSubject.type}>
-                        <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="theory">Theory</SelectItem>
-                          <SelectItem value="lab">Lab</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="priority">Priority</Label>
-                      <Select onValueChange={(v) => handleSelectChange(v, "priority")} value={newSubject.priority}>
-                        <SelectTrigger><SelectValue placeholder="Select priority" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="high">High</SelectItem>
-                          <SelectItem value="medium">Medium</SelectItem>
-                          <SelectItem value="low">Low</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="type">Type</Label>
+                    <Select onValueChange={(v) => handleSelectChange(v, "type")} value={newSubject.type}>
+                      <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="theory">Theory</SelectItem>
+                        <SelectItem value="lab">Lab</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="department">Department</Label>
@@ -241,14 +224,13 @@ const SubjectManagement = () => {
                   <TableHead>Subject Name</TableHead>
                   <TableHead>Dept / Class / Sec</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead>Priority</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {subjectList.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">No subjects found.</TableCell>
+                    <TableCell colSpan={4} className="text-center py-10 text-muted-foreground">No subjects found.</TableCell>
                   </TableRow>
                 ) : (
                   subjectList.map((subject) => (
@@ -260,7 +242,6 @@ const SubjectManagement = () => {
                         </span>
                       </TableCell>
                       <TableCell className="capitalize">{subject.type}</TableCell>
-                      <TableCell className="capitalize">{subject.priority}</TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="icon" onClick={() => handleDeleteSubject(subject.id)}>
                           <Trash2 className="h-4 w-4 text-destructive" />
