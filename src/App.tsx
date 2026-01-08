@@ -3,23 +3,21 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import FacultyManagement from "./pages/FacultyManagement";
 import LoginPage from "./pages/LoginPage";
 import StudentDashboard from "./pages/StudentDashboard";
 import SubjectManagement from "./pages/SubjectManagement";
 import RoomManagement from "./pages/RoomManagement";
-import DepartmentManagement from "./pages/DepartmentManagement"; // New import
-import BatchManagement from "./pages/BatchManagement"; // New import
-import SchedulingRuleManagement from "./pages/SchedulingRuleManagement"; // New import
+import DepartmentManagement from "./pages/DepartmentManagement";
+import BatchManagement from "./pages/BatchManagement";
+import SchedulingRuleManagement from "./pages/SchedulingRuleManagement";
 import { SessionContextProvider, useSession } from "./context/SessionContext";
 import React from "react";
-import { Loader2 } from "lucide-react"; // Import Loader2
+import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
 
-// A simple wrapper to protect routes based on role
 const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles: string[] }> = ({
   children,
   allowedRoles,
@@ -40,8 +38,6 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles: string
   }
 
   if (!profile || !allowedRoles.includes(profile.role || '')) {
-    // Redirect to a generic dashboard or login if role is not allowed
-    // For now, redirect to login, but in a real app, you might have a "Unauthorized" page
     return <Navigate to="/login" replace />;
   }
 
@@ -59,19 +55,10 @@ const App = () => (
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<LoginPage />} />
             
-            {/* Admin/Faculty Protected Routes */}
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute allowedRoles={["admin", "faculty"]}>
-                  <Index />
-                </ProtectedRoute>
-              }
-            />
             <Route
               path="/dashboard/faculty"
               element={
-                <ProtectedRoute allowedRoles={["admin"]}>
+                <ProtectedRoute allowedRoles={["admin", "faculty"]}>
                   <FacultyManagement />
                 </ProtectedRoute>
               }
@@ -116,9 +103,7 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-            {/* Add other admin/faculty routes here with appropriate roles */}
 
-            {/* Student Protected Route */}
             <Route
               path="/student-dashboard"
               element={
@@ -128,7 +113,6 @@ const App = () => (
               }
             />
 
-            {/* Catch-all route */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </SessionContextProvider>

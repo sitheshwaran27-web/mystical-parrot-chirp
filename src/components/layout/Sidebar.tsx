@@ -5,20 +5,17 @@ import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
-  LayoutDashboard,
   Users,
   Building,
   Book,
   CalendarDays,
-  Settings,
   FileText,
   ClipboardList,
   DoorOpen,
-  GraduationCap,
-  Boxes, // Icon for Batches
-  ListChecks, // Icon for Scheduling Rules
+  Boxes,
+  ListChecks,
 } from "lucide-react";
-import { useSession } from "@/context/SessionContext"; // Import useSession
+import { useSession } from "@/context/SessionContext";
 
 interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
   className?: string;
@@ -26,16 +23,10 @@ interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
 
 const navItems = [
   {
-    name: "Dashboard",
-    href: "/dashboard",
-    icon: LayoutDashboard,
-    roles: ["admin", "faculty"],
-  },
-  {
     name: "Faculty",
     href: "/dashboard/faculty",
     icon: Users,
-    roles: ["admin"],
+    roles: ["admin", "faculty"],
   },
   {
     name: "Departments",
@@ -88,8 +79,8 @@ const navItems = [
 ];
 
 export function Sidebar({ className }: SidebarProps) {
-  const { profile } = useSession(); // Get user profile from session context
-  const userRole = profile?.role || "student"; // Default to student if no role
+  const { profile } = useSession();
+  const userRole = profile?.role || "student";
 
   return (
     <div className={cn("pb-12", className)}>

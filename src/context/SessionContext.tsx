@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { showSuccess, showError } from '@/utils/toast';
+import { showSuccess } from '@/utils/toast';
 
 interface SessionContextType {
   session: Session | null;
@@ -39,7 +39,6 @@ export const SessionContextProvider = ({ children }: { children: ReactNode }) =>
   };
 
   useEffect(() => {
-    // Initial session check
     const initSession = async () => {
       const { data: { session: initialSession } } = await supabase.auth.getSession();
       
@@ -49,10 +48,9 @@ export const SessionContextProvider = ({ children }: { children: ReactNode }) =>
         const profileData = await fetchProfile(initialSession.user.id);
         setProfile(profileData);
         
-        // Handle redirect only if we are on login page
         if (location.pathname === '/login' || location.pathname === '/') {
           if (profileData?.role === 'admin' || profileData?.role === 'faculty') {
-            navigate('/dashboard');
+            navigate('/dashboard/faculty');
           } else {
             navigate('/student-dashboard');
           }
@@ -74,7 +72,7 @@ export const SessionContextProvider = ({ children }: { children: ReactNode }) =>
           
           if (event === 'SIGNED_IN') {
             if (profileData?.role === 'admin' || profileData?.role === 'faculty') {
-              navigate('/dashboard');
+              navigate('/dashboard/faculty');
             } else {
               navigate('/student-dashboard');
             }
@@ -91,7 +89,7 @@ export const SessionContextProvider = ({ children }: { children: ReactNode }) =>
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, [navigate]); // Only run once on mount
+  }, [navigate]);
 
   const signOut = async () => {
     await supabase.auth.signOut();
