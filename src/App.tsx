@@ -8,7 +8,6 @@ import FacultyManagement from "./pages/FacultyManagement";
 import LoginPage from "./pages/LoginPage";
 import StudentDashboard from "./pages/StudentDashboard";
 import SubjectManagement from "./pages/SubjectManagement";
-import RoomManagement from "./pages/RoomManagement";
 import DepartmentManagement from "./pages/DepartmentManagement";
 import BatchManagement from "./pages/BatchManagement";
 import SchedulingRuleManagement from "./pages/SchedulingRuleManagement";
@@ -86,14 +85,6 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["admin"]}>
                   <SubjectManagement />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard/rooms"
-              element={
-                <ProtectedRoute allowedRoles={["admin"]}>
-                  <RoomManagement />
                 </ProtectedRoute>
               }
             />

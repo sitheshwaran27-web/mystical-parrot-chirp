@@ -11,7 +11,6 @@ import {
   CalendarDays,
   FileText,
   ClipboardList,
-  DoorOpen,
   Boxes,
   ListChecks,
 } from "lucide-react";
@@ -44,12 +43,6 @@ const navItems = [
     name: "Subjects",
     href: "/dashboard/subjects",
     icon: Book,
-    roles: ["admin"],
-  },
-  {
-    name: "Rooms",
-    href: "/dashboard/rooms",
-    icon: DoorOpen,
     roles: ["admin"],
   },
   {

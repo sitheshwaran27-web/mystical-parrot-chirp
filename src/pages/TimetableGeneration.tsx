@@ -70,14 +70,13 @@ const TimetableGeneration = () => {
 
     try {
       // 1. Fetch resources - Filtering subjects by batch criteria
-      const [subjectsRes, facultyRes, roomsRes] = await Promise.all([
+      const [subjectsRes, facultyRes] = await Promise.all([
         supabase
           .from("subjects")
           .select("id, name, type")
           .eq("year", batch.year)
           .eq("semester", batch.semester),
-        supabase.from("faculty").select("id, name"),
-        supabase.from("rooms").select("id, name")
+        supabase.from("faculty").select("id, name")
       ]);
 
       // Specific error handling for missing resources
@@ -86,9 +85,6 @@ const TimetableGeneration = () => {
       }
       if (!facultyRes.data || facultyRes.data.length === 0) {
         throw new Error("No faculty members found. Please add faculty in Faculty Management first.");
-      }
-      if (!roomsRes.data || roomsRes.data.length === 0) {
-        throw new Error("No rooms found. Please add rooms in Room Management first.");
       }
 
       setProgress(20);
@@ -109,17 +105,14 @@ const TimetableGeneration = () => {
       const newSlots = [];
       let subjectIndex = 0;
       let facultyIndex = 0;
-      let roomIndex = 0;
 
       const availableSubjects = subjectsRes.data;
       const availableFaculty = facultyRes.data;
-      const availableRooms = roomsRes.data;
 
       for (const day of DAYS) {
         for (const timeSlot of TIME_SLOTS) {
           const subject = availableSubjects[subjectIndex % availableSubjects.length];
           const faculty = availableFaculty[facultyIndex % availableFaculty.length];
-          const room = availableRooms[roomIndex % availableRooms.length];
 
           newSlots.push({
             day,
@@ -127,13 +120,12 @@ const TimetableGeneration = () => {
             class_name: batch.name,
             subject_id: subject.id,
             faculty_id: faculty.id,
-            room_id: room.id,
+            room_id: null, // Room removed
             type: subject.type || "theory"
           });
 
           subjectIndex++;
           facultyIndex++;
-          roomIndex++;
         }
         
         // Add a lunch break slot

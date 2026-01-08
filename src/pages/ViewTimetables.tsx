@@ -19,7 +19,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, Download, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { showSuccess, showError } from "@/utils/toast";
@@ -39,7 +38,6 @@ interface ScheduleSlot {
   type: string;
   subjects: { name: string } | null;
   faculty: { name: string } | null;
-  rooms: { name: string } | null;
 }
 
 const DAYS_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -83,8 +81,7 @@ const ViewTimetables = () => {
         class_name,
         type,
         subjects (name),
-        faculty (name),
-        rooms (name)
+        faculty (name)
       `)
       .eq("class_name", batchName)
       .order("day", { ascending: true })
@@ -94,7 +91,7 @@ const ViewTimetables = () => {
       showError("Failed to fetch timetable.");
       setTimetable([]);
     } else {
-      setTimetable(data as ScheduleSlot[]);
+      setTimetable(data as any[]);
     }
     setLoading(false);
   };
@@ -123,7 +120,6 @@ const ViewTimetables = () => {
           <>
             <span className="font-semibold">{slot.subjects?.name || "N/A"}</span>
             <span>{slot.faculty?.name || "N/A"}</span>
-            <span>{slot.rooms?.name || "N/A"}</span>
             {isLab && <span className="text-blue-600">(Lab)</span>}
           </>
         )}
@@ -147,7 +143,7 @@ const ViewTimetables = () => {
       days.forEach(day => {
         const slot = timetable.find(s => s.day === day && s.time_slot === time);
         if (slot) {
-          row.push(slot.type === "break" ? "Break" : `${slot.subjects?.name || ""}\n${slot.faculty?.name || ""}\n${slot.rooms?.name || ""}`);
+          row.push(slot.type === "break" ? "Break" : `${slot.subjects?.name || ""}\n${slot.faculty?.name || ""}`);
         } else {
           row.push("");
         }

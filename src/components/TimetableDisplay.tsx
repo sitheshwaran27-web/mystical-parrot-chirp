@@ -26,11 +26,9 @@ interface ScheduleSlot {
   class_name: string;
   subject_id: string;
   faculty_id: string;
-  room_id: string;
   type: string; // "theory", "lab", "break"
   subjects: { name: string } | null;
   faculty: { name: string } | null;
-  rooms: { name: string } | null;
 }
 
 const DAYS_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -65,8 +63,7 @@ const TimetableDisplay: React.FC = () => {
         class_name,
         type,
         subjects (name),
-        faculty (name),
-        rooms (name)
+        faculty (name)
       `)
       .eq("class_name", profile.class_name)
       .order("day", { ascending: true })
@@ -78,7 +75,7 @@ const TimetableDisplay: React.FC = () => {
       setError("Failed to load timetable. Please try again later.");
       setTimetable([]);
     } else {
-      setTimetable(data as ScheduleSlot[]);
+      setTimetable(data as any[]);
       showSuccess("Timetable loaded successfully.");
     }
     setLoading(false);
@@ -116,7 +113,6 @@ const TimetableDisplay: React.FC = () => {
           <>
             <span className="font-semibold">{slot.subjects?.name || "N/A"}</span>
             <span>{slot.faculty?.name || "N/A"}</span>
-            <span>{slot.rooms?.name || "N/A"}</span>
             {isLab && <span className="text-blue-600">(Lab)</span>}
           </>
         )}
@@ -183,7 +179,6 @@ const TimetableDisplay: React.FC = () => {
                     <TableHead className="w-[120px]">Time</TableHead>
                     <TableHead>Subject</TableHead>
                     <TableHead>Faculty</TableHead>
-                    <TableHead>Room</TableHead>
                     <TableHead>Type</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -198,7 +193,6 @@ const TimetableDisplay: React.FC = () => {
                         <TableCell className="font-medium">{slot.time_slot}</TableCell>
                         <TableCell>{slot.subjects?.name || "N/A"}</TableCell>
                         <TableCell>{slot.faculty?.name || "N/A"}</TableCell>
-                        <TableCell>{slot.rooms?.name || "N/A"}</TableCell>
                         <TableCell>
                           <span
                             className={`px-2 py-1 rounded-full text-xs font-semibold
@@ -223,9 +217,6 @@ const TimetableDisplay: React.FC = () => {
   };
 
   const renderClassWiseView = () => {
-    // For student dashboard, class-wise view is essentially the same as weekly/day-wise
-    // as they only see their own class's timetable.
-    // We can just render the weekly view here or a simplified version.
     return (
       <div className="space-y-4">
         <p className="text-muted-foreground">
@@ -263,7 +254,7 @@ const TimetableDisplay: React.FC = () => {
         if (slot) {
           const content = slot.type === "break"
             ? "Break"
-            : `${slot.subjects?.name || "N/A"}\n${slot.faculty?.name || "N/A"}\n${slot.rooms?.name || "N/A"}${slot.type === "lab" ? " (Lab)" : ""}`;
+            : `${slot.subjects?.name || "N/A"}\n${slot.faculty?.name || "N/A"}${slot.type === "lab" ? " (Lab)" : ""}`;
           rowData.push(content);
         } else {
           rowData.push("");
@@ -279,7 +270,7 @@ const TimetableDisplay: React.FC = () => {
       theme: 'grid',
       styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak' },
       headStyles: { fillColor: [22, 163, 74], textColor: [255, 255, 255] },
-      columnStyles: { 0: { cellWidth: 25 } }, // Adjust time slot column width
+      columnStyles: { 0: { cellWidth: 25 } },
     });
 
     doc.save(`Timetable_${class_name}.pdf`);
