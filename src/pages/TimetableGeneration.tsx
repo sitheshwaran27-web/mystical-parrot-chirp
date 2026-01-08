@@ -15,9 +15,15 @@ interface Batch {
   name: string;
 }
 
+const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+const TIME_SLOTS = [
+  "08:00-09:00", "09:00-10:00", "10:00-11:00", "11:00-12:00",
+  "13:00-14:00", "14:00-15:00", "15:00-16:00"
+];
+
 const TimetableGeneration = () => {
   const [batches, setBatches] = useState<Batch[]>([]);
-  const [selectedBatch, setSelectedBatch] = useState<string>("");
+  const [selectedBatchId, setSelectedBatchId] = useState<string>("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState<string>("");
@@ -44,7 +50,7 @@ const TimetableGeneration = () => {
   };
 
   const handleGenerate = async () => {
-    if (!selectedBatch) {
+    if (!selectedBatchId) {
       toast({
         title: "Selection Required",
         description: "Please select a batch to generate the timetable for.",
@@ -53,44 +59,101 @@ const TimetableGeneration = () => {
       return;
     }
 
+    const batch = batches.find(b => b.id === selectedBatchId);
+    if (!batch) return;
+
     setIsGenerating(true);
-    setProgress(10);
-    setStatus("Analyzing scheduling rules...");
+    setProgress(5);
+    setStatus("Fetching resources...");
 
-    // Simulated generation process for now
-    // In a production app, this would call a Supabase Edge Function
     try {
-      setTimeout(() => {
-        setProgress(30);
-        setStatus("Fetching available faculty and rooms...");
-      }, 1000);
+      // 1. Fetch resources
+      const [subjectsRes, facultyRes, roomsRes] = await Promise.all([
+        supabase.from("subjects").select("id, name, type"),
+        supabase.from("faculty").select("id, name"),
+        supabase.from("rooms").select("id, name")
+      ]);
 
-      setTimeout(() => {
-        setProgress(60);
-        setStatus("Solving constraints and optimizing slots...");
-      }, 2500);
+      if (!subjectsRes.data?.length || !facultyRes.data?.length || !roomsRes.data?.length) {
+        throw new Error("Insufficient resources (subjects, faculty, or rooms) to generate a timetable.");
+      }
 
-      setTimeout(() => {
-        setProgress(90);
-        setStatus("Finalizing timetable...");
-      }, 4000);
+      setProgress(20);
+      setStatus(`Clearing existing schedule for ${batch.name}...`);
 
-      setTimeout(() => {
-        setProgress(100);
-        setStatus("Generation complete!");
-        setIsGenerating(false);
-        toast({
-          title: "Success",
-          description: "Timetable generated successfully for the selected batch.",
+      // 2. Clear existing slots for this batch
+      const { error: deleteError } = await supabase
+        .from("schedule_slots")
+        .delete()
+        .eq("class_name", batch.name);
+
+      if (deleteError) throw deleteError;
+
+      setProgress(40);
+      setStatus("Assigning slots...");
+
+      // 3. Simple generation logic: Fill slots sequentially with available resources
+      const newSlots = [];
+      let subjectIndex = 0;
+      let facultyIndex = 0;
+      let roomIndex = 0;
+
+      for (const day of DAYS) {
+        for (const timeSlot of TIME_SLOTS) {
+          const subject = subjectsRes.data[subjectIndex % subjectsRes.data.length];
+          const faculty = facultyRes.data[facultyIndex % facultyRes.data.length];
+          const room = roomsRes.data[roomIndex % roomsRes.data.length];
+
+          newSlots.push({
+            day,
+            time_slot: timeSlot,
+            class_name: batch.name,
+            subject_id: subject.id,
+            faculty_id: faculty.id,
+            room_id: room.id,
+            type: subject.type || "theory"
+          });
+
+          subjectIndex++;
+          facultyIndex++;
+          roomIndex++;
+        }
+        
+        // Add a lunch break slot
+        newSlots.push({
+          day,
+          time_slot: "12:00-13:00",
+          class_name: batch.name,
+          type: "break"
         });
-      }, 5500);
+      }
 
-    } catch (error) {
+      setProgress(70);
+      setStatus("Saving generated schedule...");
+
+      // 4. Batch insert into Supabase
+      const { error: insertError } = await supabase
+        .from("schedule_slots")
+        .insert(newSlots);
+
+      if (insertError) throw insertError;
+
+      setProgress(100);
+      setStatus("Generation complete!");
+      setIsGenerating(false);
+      
+      toast({
+        title: "Success",
+        description: `Timetable generated successfully for ${batch.name}.`,
+      });
+
+    } catch (error: any) {
+      console.error("Generation error:", error);
       setIsGenerating(false);
       setStatus("Error during generation.");
       toast({
         title: "Generation Failed",
-        description: "An unexpected error occurred during generation.",
+        description: error.message || "An unexpected error occurred during generation.",
         variant: "destructive",
       });
     }
@@ -106,13 +169,13 @@ const TimetableGeneration = () => {
             <CardHeader>
               <CardTitle>Generator Settings</CardTitle>
               <CardDescription>
-                Select a target batch and configure parameters for the automated scheduling engine.
+                Select a target batch to generate a fresh automated schedule. This will overwrite any existing timetable for that batch.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Target Batch</label>
-                <Select value={selectedBatch} onValueChange={setSelectedBatch} disabled={isGenerating}>
+                <Select value={selectedBatchId} onValueChange={setSelectedBatchId} disabled={isGenerating}>
                   <SelectTrigger>
                     <SelectValue placeholder={loading ? "Loading batches..." : "Select batch"} />
                   </SelectTrigger>
@@ -129,7 +192,7 @@ const TimetableGeneration = () => {
               <div className="pt-4">
                 <Button 
                   onClick={handleGenerate} 
-                  disabled={isGenerating || !selectedBatch} 
+                  disabled={isGenerating || !selectedBatchId} 
                   className="w-full"
                 >
                   {isGenerating ? (
@@ -172,7 +235,7 @@ const TimetableGeneration = () => {
                     <span>
                       {progress === 100 
                         ? "The schedule is now live and can be viewed." 
-                        : "Our engine is balancing faculty workload and room availability."}
+                        : "Processing assignments and constraints..."}
                     </span>
                   </div>
                 </div>
