@@ -13,6 +13,7 @@ import {
   ClipboardList,
   Boxes,
   ListChecks,
+  Heart
 } from "lucide-react";
 import { useSession } from "@/context/SessionContext";
 
@@ -26,6 +27,12 @@ const navItems = [
     href: "/dashboard/faculty",
     icon: Users,
     roles: ["admin", "faculty"],
+  },
+  {
+    name: "My Preferences",
+    href: "/dashboard/preferences",
+    icon: Heart,
+    roles: ["faculty", "admin"],
   },
   {
     name: "Departments",
@@ -72,15 +79,15 @@ const navItems = [
 ];
 
 export function Sidebar({ className }: SidebarProps) {
-  const { profile } = useSession();
+  const { profile, signOut } = useSession();
   const userRole = profile?.role || "student";
 
   return (
-    <div className={cn("pb-12", className)}>
-      <div className="space-y-4 py-4">
+    <div className={cn("pb-12 h-full flex flex-col", className)}>
+      <div className="space-y-4 py-4 flex-1">
         <div className="px-3 py-2">
           <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">
-            Admin Panel
+            Navigation
           </h2>
           <div className="space-y-1">
             {navItems.map((item) =>
@@ -100,6 +107,11 @@ export function Sidebar({ className }: SidebarProps) {
             )}
           </div>
         </div>
+      </div>
+      <div className="px-3 py-2 border-t mt-auto">
+        <Button variant="outline" className="w-full justify-start" onClick={signOut}>
+           Sign Out
+        </Button>
       </div>
     </div>
   );

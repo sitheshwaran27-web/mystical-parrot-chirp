@@ -14,6 +14,7 @@ import SchedulingRuleManagement from "./pages/SchedulingRuleManagement";
 import TimetableGeneration from "./pages/TimetableGeneration";
 import ViewTimetables from "./pages/ViewTimetables";
 import WorkloadReports from "./pages/WorkloadReports";
+import FacultyPreferences from "./pages/FacultyPreferences";
 import { SessionContextProvider, useSession } from "./context/SessionContext";
 import React from "react";
 import { Loader2 } from "lucide-react";
@@ -62,6 +63,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={["admin", "faculty"]}>
                   <FacultyManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/preferences"
+              element={
+                <ProtectedRoute allowedRoles={["admin", "faculty"]}>
+                  <FacultyPreferences />
                 </ProtectedRoute>
               }
             />
