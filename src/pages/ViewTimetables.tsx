@@ -19,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, Download, Search, Brain, Info } from "lucide-react";
+import { Loader2, Brain, Info, UserPlus, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { showSuccess, showError } from "@/utils/toast";
 import { 
@@ -29,13 +29,6 @@ import {
     DialogTitle, 
     DialogDescription 
 } from "@/components/ui/dialog";
-import jsPDF from "jspdf";
-import "jspdf-autotable";
-
-interface Batch {
-  id: string;
-  name: string;
-}
 
 interface ScheduleSlot {
   id: string;
@@ -44,8 +37,15 @@ interface ScheduleSlot {
   class_name: string;
   type: string;
   ai_score: number;
+  subject_id?: string;
   subjects: { name: string } | null;
   faculty: { name: string } | null;
+}
+
+interface Recommendation {
+  id: string;
+  name: string;
+  score: number;
 }
 
 const DAYS_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
@@ -55,46 +55,58 @@ const TIME_SLOTS_ORDER = [
 ];
 
 const ViewTimetables = () => {
-  const [batches, setBatches] = useState<Batch[]>([]);
+  const [batches, setBatches] = useState<any[]>([]);
   const [selectedBatchName, setSelectedBatchName] = useState<string>("");
   const [timetable, setTimetable] = useState<ScheduleSlot[]>([]);
   const [loading, setLoading] = useState(false);
-  const [batchesLoading, setBatchesLoading] = useState(true);
   const [selectedSlot, setSelectedSlot] = useState<ScheduleSlot | null>(null);
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [recLoading, setRecLoading] = useState(false);
 
   useEffect(() => { fetchBatches(); }, []);
 
   const fetchBatches = async () => {
     const { data } = await supabase.from("batches").select("id, name").order("name");
     setBatches(data || []);
-    setBatchesLoading(false);
   };
 
   const fetchTimetable = async (batchName: string) => {
     if (!batchName) return;
     setLoading(true);
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("schedule_slots")
-      .select(`id, day, time_slot, class_name, type, ai_score, subjects (name), faculty (name)`)
+      .select(`id, day, time_slot, class_name, type, ai_score, subject_id, subjects (name), faculty (name)`)
       .eq("class_name", batchName);
-
-    if (error) {
-      showError("Failed to fetch timetable.");
-    } else {
-      setTimetable(data as any[]);
-    }
+    setTimetable(data as any[] || []);
     setLoading(false);
   };
 
-  const handleCellClick = (slot: ScheduleSlot | null) => {
-    if (slot) setSelectedSlot(slot);
+  const handleCellClick = async (slot: ScheduleSlot) => {
+    setSelectedSlot(slot);
+    setRecLoading(true);
+    try {
+      const response = await fetch(`https://bcfkkrfrzutbmhdbosaa.supabase.co/functions/v1/ai-timetable-engine`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          mode: 'recommend', 
+          day: slot.day, 
+          time_slot: slot.time_slot,
+          subject_id: slot.subject_id 
+        })
+      });
+      const data = await response.json();
+      setRecommendations(data.recommendations || []);
+    } catch (e) {
+      console.error("Failed to fetch recommendations");
+    } finally {
+      setRecLoading(false);
+    }
   };
 
   const getCellContent = (day: string, timeSlot: string) => {
     const slot = timetable.find((s) => s.day === day && s.time_slot === timeSlot);
     if (!slot) return <div className="h-full w-full bg-slate-50 border border-dashed rounded" />;
-
-    const isHighConfidence = slot.ai_score > 10;
 
     return (
       <div 
@@ -105,10 +117,9 @@ const ViewTimetables = () => {
       >
         <div className="flex items-center gap-1 mb-1">
             <span className="font-bold">{slot.subjects?.name || "N/A"}</span>
-            {isHighConfidence && <Brain className="h-3 w-3 text-blue-500" title="AI High Confidence Slot" />}
+            {slot.ai_score > 30 && <Brain className="h-3 w-3 text-blue-500" />}
         </div>
         <span className="opacity-70">{slot.faculty?.name || "N/A"}</span>
-        <div className="mt-1 text-[8px] px-1 bg-white/50 rounded">Score: {slot.ai_score}</div>
       </div>
     );
   };
@@ -116,103 +127,88 @@ const ViewTimetables = () => {
   return (
     <DashboardLayout>
       <div className="container mx-auto py-8">
-        <h1 className="text-3xl font-bold mb-8">Intelligence Timetable View</h1>
+        <h1 className="text-3xl font-bold mb-8">AI Timetable View</h1>
 
         <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="text-lg">Select Search Target</CardTitle>
-          </CardHeader>
-          <CardContent className="flex gap-4">
+          <CardHeader><CardTitle className="text-lg">Select Batch</CardTitle></CardHeader>
+          <CardContent>
             <Select onValueChange={(v) => { setSelectedBatchName(v); fetchTimetable(v); }} value={selectedBatchName}>
-              <SelectTrigger className="w-[280px]">
-                <SelectValue placeholder={batchesLoading ? "Loading Batches..." : "Select a batch"} />
-              </SelectTrigger>
+              <SelectTrigger className="w-[280px]"><SelectValue placeholder="Select a batch" /></SelectTrigger>
               <SelectContent>
-                {batches.map((batch) => (
-                  <SelectItem key={batch.id} value={batch.name}>{batch.name}</SelectItem>
-                ))}
+                {batches.map((b) => <SelectItem key={b.id} value={b.name}>{b.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </CardContent>
         </Card>
 
-        {loading ? (
-          <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin" /></div>
-        ) : selectedBatchName && (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Schedule: {selectedBatchName}</CardTitle>
-                <div className="flex items-center gap-2 mt-2">
-                    <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                        <div className="h-2 w-2 rounded-full bg-emerald-300" /> Theory
-                    </div>
-                    <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                        <div className="h-2 w-2 rounded-full bg-blue-300" /> Lab
-                    </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[100px]">Time</TableHead>
-                      {DAYS_ORDER.map(day => <TableHead key={day} className="text-center">{day}</TableHead>)}
+        {loading ? <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin" /></div> : (
+          selectedBatchName && (
+            <div className="overflow-x-auto rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[100px]">Time</TableHead>
+                    {DAYS_ORDER.map(day => <TableHead key={day} className="text-center">{day}</TableHead>)}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {TIME_SLOTS_ORDER.map(time => (
+                    <TableRow key={time}>
+                      <TableCell className="font-mono text-[10px]">{time}</TableCell>
+                      {DAYS_ORDER.map(day => (
+                        <TableCell key={`${day}-${time}`} className="p-1 h-24 w-40">
+                          {getCellContent(day, time)}
+                        </TableCell>
+                      ))}
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {TIME_SLOTS_ORDER.map(time => (
-                      <TableRow key={time}>
-                        <TableCell className="font-mono text-[10px]">{time}</TableCell>
-                        {DAYS_ORDER.map(day => (
-                          <TableCell key={`${day}-${time}`} className="p-1 h-24 align-top w-40">
-                            {getCellContent(day, time)}
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )
         )}
 
         <Dialog open={!!selectedSlot} onOpenChange={() => setSelectedSlot(null)}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Brain className="h-5 w-5 text-blue-600" />
-                AI Slot Analysis
-              </DialogTitle>
-              <DialogDescription>
-                Details for {selectedSlot?.subjects?.name} at {selectedSlot?.time_slot} on {selectedSlot?.day}.
-              </DialogDescription>
+              <DialogTitle className="flex items-center gap-2"><Brain className="h-5 w-5 text-blue-600" /> AI Slot Intelligence</DialogTitle>
+              <DialogDescription>Analyzing alternatives for {selectedSlot?.day} at {selectedSlot?.time_slot}</DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
+            <div className="space-y-6 py-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="p-3 border rounded bg-slate-50">
-                  <div className="text-[10px] uppercase text-muted-foreground font-bold">Optimization Score</div>
-                  <div className="text-xl font-bold text-blue-600">{selectedSlot?.ai_score}</div>
+                <div className="p-3 border rounded bg-slate-50 text-center">
+                  <div className="text-[10px] text-muted-foreground uppercase font-bold">Current Subject</div>
+                  <div className="font-bold">{selectedSlot?.subjects?.name}</div>
                 </div>
-                <div className="p-3 border rounded bg-slate-50">
-                  <div className="text-[10px] uppercase text-muted-foreground font-bold">Confidence</div>
-                  <div className="text-xl font-bold text-emerald-600">
-                    {selectedSlot && selectedSlot.ai_score > 10 ? 'High' : 'Moderate'}
-                  </div>
+                <div className="p-3 border rounded bg-slate-50 text-center">
+                  <div className="text-[10px] text-muted-foreground uppercase font-bold">Optimization</div>
+                  <div className="font-bold text-emerald-600">{selectedSlot?.ai_score}%</div>
                 </div>
               </div>
-              <div className="space-y-2">
-                <h4 className="text-sm font-bold flex items-center gap-2">
-                  <Info className="h-4 w-4" /> AI Recommendation
-                </h4>
-                <p className="text-xs text-muted-foreground">
-                  The AI suggests this slot is optimal because {selectedSlot?.faculty?.name} has historically performed well during the {selectedSlot?.time_slot} window on {selectedSlot?.day}s.
+
+              <div className="space-y-3">
+                <h4 className="text-sm font-bold flex items-center gap-2"><Star className="h-4 w-4 text-amber-500" /> AI Recommended Faculty</h4>
+                {recLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Calculating best fit...</div> : (
+                  <div className="space-y-2">
+                    {recommendations.map(rec => (
+                      <div key={rec.id} className="flex justify-between items-center p-2 border rounded hover:bg-slate-50 transition-colors">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium">{rec.name}</span>
+                          <span className="text-[10px] text-muted-foreground">Suitability Score: {rec.score}</span>
+                        </div>
+                        <Button size="sm" variant="ghost" className="text-xs h-8"><UserPlus className="h-3 w-3 mr-1" /> Re-assign</Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              <div className="bg-blue-50 p-3 rounded-md border border-blue-100 flex gap-3">
+                <Info className="h-5 w-5 text-blue-500 shrink-0" />
+                <p className="text-[11px] text-blue-800 leading-relaxed">
+                  The AI heuristic analyzes teacher workload, past performance during this hour, and cross-batch availability to generate these recommendations.
                 </p>
               </div>
-              <Button className="w-full" variant="outline" onClick={() => setSelectedSlot(null)}>Close Analysis</Button>
             </div>
           </DialogContent>
         </Dialog>
