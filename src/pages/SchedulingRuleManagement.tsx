@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
 import {
   Select,
   SelectContent,
@@ -36,9 +37,10 @@ interface SchedulingRule {
   id: string;
   name: string;
   ruleType: string;
-  value: string; // Storing JSON string for simplicity in placeholder
+  value: string;
   isActive: boolean;
   description?: string;
+  aiWeight: number; // Importance factor for AI scoring
 }
 
 const ruleTypes = [
@@ -58,6 +60,7 @@ const SchedulingRuleManagement = () => {
       value: '{"max_hours": 3, "subject_type": "theory"}',
       isActive: true,
       description: "Faculty should not have more than 3 consecutive theory classes.",
+      aiWeight: 80,
     },
     {
       id: "rule2",
@@ -66,6 +69,7 @@ const SchedulingRuleManagement = () => {
       value: '{"subject_type": "lab", "room_type": "lab"}',
       isActive: true,
       description: "Lab subjects must be scheduled in lab rooms.",
+      aiWeight: 100,
     },
   ]);
   const [newRule, setNewRule] = React.useState({
@@ -74,6 +78,7 @@ const SchedulingRuleManagement = () => {
     value: "",
     isActive: true,
     description: "",
+    aiWeight: 50,
   });
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const { toast } = useToast();
@@ -87,132 +92,52 @@ const SchedulingRuleManagement = () => {
     setNewRule((prev) => ({ ...prev, [id]: value }));
   };
 
-  const handleSwitchChange = (checked: boolean) => {
-    setNewRule((prev) => ({ ...prev, isActive: checked }));
-  };
-
   const handleAddRule = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newRule.name || !newRule.ruleType || !newRule.value) {
-      toast({
-        title: "Error",
-        description: "Please fill in all required fields.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      JSON.parse(newRule.value); // Validate if value is valid JSON
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Rule Value must be a valid JSON string.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     const id = `rule${rules.length + 1}`;
     setRules((prev) => [...prev, { id, ...newRule }]);
-    setNewRule({ name: "", ruleType: "", value: "", isActive: true, description: "" });
+    setNewRule({ name: "", ruleType: "", value: "", isActive: true, description: "", aiWeight: 50 });
     setIsDialogOpen(false);
-    toast({
-      title: "Success",
-      description: "Scheduling rule added successfully.",
-    });
+    toast({ title: "Success", description: "Rule weight saved." });
   };
 
   return (
     <DashboardLayout>
       <div className="container mx-auto py-8">
-        <h1 className="text-3xl font-bold mb-8">Scheduling Rule Management</h1>
+        <h1 className="text-3xl font-bold mb-8">AI Rule Weight Management</h1>
 
         <div className="flex justify-end mb-4">
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button>Add Rule</Button>
+              <Button>Configure New AI Rule</Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[600px]">
               <DialogHeader>
-                <DialogTitle>Add New Scheduling Rule</DialogTitle>
-                <DialogDescription>
-                  Define a new rule for timetable generation.
-                </DialogDescription>
+                <DialogTitle>New AI Constraint</DialogTitle>
+                <DialogDescription>Define how much the AI should prioritize this rule.</DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleAddRule} className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="name" className="text-right">
-                    Rule Name
-                  </Label>
-                  <Input
-                    id="name"
-                    value={newRule.name}
-                    onChange={handleInputChange}
-                    className="col-span-3"
-                    required
+              <form onSubmit={handleAddRule} className="grid gap-6 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="name">Rule Name</Label>
+                  <Input id="name" value={newRule.name} onChange={handleInputChange} required />
+                </div>
+                <div className="grid gap-2">
+                  <Label>AI Weight (Importance: {newRule.aiWeight}%)</Label>
+                  <Slider 
+                    value={[newRule.aiWeight]} 
+                    onValueChange={(v) => setNewRule(p => ({ ...p, aiWeight: v[0] }))}
+                    max={100}
+                    step={5}
                   />
+                  <p className="text-[10px] text-muted-foreground italic">
+                    Higher weight forces the AI to strictly adhere to this constraint.
+                  </p>
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="ruleType" className="text-right">
-                    Rule Type
-                  </Label>
-                  <Select
-                    onValueChange={(value) => handleSelectChange(value, "ruleType")}
-                    value={newRule.ruleType}
-                    required
-                  >
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Select rule type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ruleTypes.map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="grid gap-2">
+                  <Label htmlFor="value">Rule JSON</Label>
+                  <Textarea id="value" value={newRule.value} onChange={handleInputChange} required />
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="value" className="text-right">
-                    Rule Value (JSON)
-                  </Label>
-                  <Textarea
-                    id="value"
-                    value={newRule.value}
-                    onChange={handleInputChange}
-                    className="col-span-3"
-                    placeholder='e.g., {"max_hours": 3, "subject_type": "theory"}'
-                    required
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="description" className="text-right">
-                    Description
-                  </Label>
-                  <Textarea
-                    id="description"
-                    value={newRule.description}
-                    onChange={handleInputChange}
-                    className="col-span-3"
-                    placeholder="A brief explanation of the rule."
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="isActive" className="text-right">
-                    Active
-                  </Label>
-                  <Switch
-                    id="isActive"
-                    checked={newRule.isActive}
-                    onCheckedChange={handleSwitchChange}
-                    className="col-span-3 justify-self-start"
-                  />
-                </div>
-                <Button type="submit" className="w-full mt-4">
-                  Add Rule
-                </Button>
+                <Button type="submit">Save Constraint</Button>
               </form>
             </DialogContent>
           </Dialog>
@@ -224,8 +149,8 @@ const SchedulingRuleManagement = () => {
               <TableRow>
                 <TableHead>Rule Name</TableHead>
                 <TableHead>Type</TableHead>
-                <TableHead>Value</TableHead>
-                <TableHead>Active</TableHead>
+                <TableHead>AI Weight</TableHead>
+                <TableHead>Priority</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -234,11 +159,21 @@ const SchedulingRuleManagement = () => {
                 <TableRow key={rule.id}>
                   <TableCell className="font-medium">{rule.name}</TableCell>
                   <TableCell>{rule.ruleType}</TableCell>
-                  <TableCell className="text-xs max-w-[200px] truncate">{rule.value}</TableCell>
-                  <TableCell>{rule.isActive ? "Yes" : "No"}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-24 bg-secondary rounded-full overflow-hidden">
+                        <div className="h-full bg-primary" style={{ width: `${rule.aiWeight}%` }} />
+                      </div>
+                      <span className="text-xs">{rule.aiWeight}%</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className={`text-xs px-2 py-1 rounded ${rule.aiWeight > 75 ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+                      {rule.aiWeight > 75 ? 'Critical' : 'Moderate'}
+                    </span>
+                  </TableCell>
                   <TableCell className="text-right">
                     <Button variant="ghost" size="sm">Edit</Button>
-                    <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700">Delete</Button>
                   </TableCell>
                 </TableRow>
               ))}
