@@ -85,7 +85,7 @@ export const useFacultyTimetable = () => {
                             id, date, schedule_slot_id, 
                             schedule_slot (
                                 id, day, time_slot, class_name, subject_id, faculty_id, type,
-                                subjects (name), batches (name)
+                                subjects (name)
                             )
                         `)
                         .eq('substitute_faculty_id', facultyData.id)

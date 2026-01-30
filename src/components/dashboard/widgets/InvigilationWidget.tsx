@@ -38,7 +38,7 @@ export function InvigilationWidget() {
                         exam_schedules (
                             exam_date,
                             session,
-                            subjects (name, code),
+                            subjects (name),
                             exam_halls (name),
                             exams (name, morning_session_start, morning_session_end, afternoon_session_start, afternoon_session_end),
                             batches (name)
