@@ -64,8 +64,7 @@ export const useFacultyTimetable = () => {
             subject_id,
             faculty_id,
             type,
-            subjects (name),
-            batches (name)
+            subjects (name)
           `)
                     .eq('faculty_id', facultyData.id)
                     .order('day', { ascending: true })

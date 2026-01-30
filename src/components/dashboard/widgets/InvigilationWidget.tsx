@@ -41,18 +41,22 @@ export function InvigilationWidget() {
                             subjects (name, code),
                             exam_halls (name),
                             exams (name, morning_session_start, morning_session_end, afternoon_session_start, afternoon_session_end),
-                            batch: batches (name)
+                            batches (name)
                         )
                     `)
-                    .eq('faculty_id', facultyData.id)
-                    .order('created_at', { ascending: false }); // ideally order by exam_date, but it's nested
+                    .eq('faculty_id', facultyData.id);
 
-                if (error) throw error;
+                if (error) {
+                    console.error("Query Error in InvigilationWidget:", error);
+                    throw error;
+                }
 
-                // Sort by date JS side
-                const sorted = (data || []).sort((a: any, b: any) =>
-                    new Date(a.exam_schedules?.exam_date).getTime() - new Date(b.exam_schedules?.exam_date).getTime()
-                );
+                // Sort and transform
+                const sorted = (data || [])
+                    .filter((d: any) => d.exam_schedules) // Safety filter
+                    .sort((a: any, b: any) =>
+                        new Date(a.exam_schedules.exam_date).getTime() - new Date(b.exam_schedules.exam_date).getTime()
+                    );
 
                 // Filter upcoming
                 const upcoming = sorted.filter((d: any) => new Date(d.exam_schedules?.exam_date) >= new Date(new Date().setHours(0, 0, 0, 0)));
