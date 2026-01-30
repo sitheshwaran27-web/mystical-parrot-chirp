@@ -11,11 +11,12 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 1. Profiles: RECURSION-PROOF POLICIES
--- We stop checking "role" inside the "profiles" table policies to prevent loops.
 DROP POLICY IF EXISTS "Admins can manage all profiles" ON profiles;
 DROP POLICY IF EXISTS "Users can read own profile" ON profiles;
 DROP POLICY IF EXISTS "Allow authenticated users to read profiles" ON profiles;
 DROP POLICY IF EXISTS "Users can insert own profile" ON profiles;
+DROP POLICY IF EXISTS "Profiles are readable by all" ON profiles;
+DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
 
 -- Everyone logged in can read ANY profile (stops the fetching loop)
 CREATE POLICY "Profiles are readable by all" ON profiles
