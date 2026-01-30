@@ -35,7 +35,7 @@ export const useFacultyTimetable = () => {
                 const { data: facultyData, error: facultyError } = await supabase
                     .from('faculty')
                     .select('id')
-                    .eq('user_id', user.id)
+                    .eq('id', user.id)
                     .single();
 
                 if (facultyError) {

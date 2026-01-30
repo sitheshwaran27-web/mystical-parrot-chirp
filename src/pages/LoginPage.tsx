@@ -210,20 +210,43 @@ const LoginPage = () => {
                           if (profile?.role) {
                             navigate(profile.role === 'student' ? '/student-dashboard' : '/dashboard');
                           } else if (session?.user) {
-                            // Self-heal: Create a default profile if missing
-                            console.log("LoginPage: Attempting profile self-heal...");
-                            const { error } = await supabase.from('profiles').insert({
+                            // Self-heal: Create a default profile AND faculty/student record if missing
+                            console.log("LoginPage: Attempting full profile self-heal...");
+                            const userEmail = session.user.email || "";
+                            const userName = userEmail.split('@')[0] || 'User';
+
+                            // 1. Create Profile
+                            const { error: profileError } = await supabase.from('profiles').upsert({
                               id: session.user.id,
                               role: 'faculty', // Default to faculty, admin can change later
-                              first_name: session.user.email?.split('@')[0] || 'User'
+                              first_name: userName,
+                              email: userEmail
                             });
 
-                            if (error) {
-                              toast({ title: "Healing Failed", description: error.message, variant: "destructive" });
-                            } else {
-                              toast({ title: "Profile Healed", description: "Reloading to sync..." });
-                              window.location.reload();
+                            if (profileError) {
+                              console.error("Profile heal failed:", profileError);
+                              toast({ title: "Healing Failed", description: profileError.message, variant: "destructive" });
+                              return;
                             }
+
+                            // 2. Create Faculty Record (Needed for Timetable/Duties)
+                            console.log("LoginPage: Creating faculty record...");
+                            const { error: facultyError } = await supabase.from('faculty').upsert({
+                              id: session.user.id,
+                              name: userName,
+                              email: userEmail,
+                              priority: 'junior',
+                              department: 'Computer Science' // Default placeholder
+                            });
+
+                            if (facultyError) {
+                              console.warn("Faculty record heal failed (might already exist):", facultyError);
+                            }
+
+                            toast({ title: "Profile Healed", description: "Your account is now ready. Reloading..." });
+                            setTimeout(() => {
+                              window.location.reload();
+                            }, 1000);
                           } else {
                             localStorage.clear();
                             window.location.reload();

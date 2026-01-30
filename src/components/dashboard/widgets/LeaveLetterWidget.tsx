@@ -35,7 +35,7 @@ export function LeaveLetterWidget() {
             const { data: faculty, error: fError } = await supabase
                 .from('faculty')
                 .select('id, name')
-                .eq('user_id', user.id)
+                .eq('id', user.id)
                 .single();
 
             if (fError || !faculty) throw new Error("Could not find your faculty record");

@@ -21,7 +21,7 @@ export function InvigilationWidget() {
                 const { data: facultyData } = await supabase
                     .from('faculty')
                     .select('id')
-                    .eq('user_id', user.id)
+                    .eq('id', user.id)
                     .single(); // Might be null if admin or not linked
 
                 if (!facultyData) {
