@@ -5,6 +5,7 @@ import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { showSuccess } from '@/utils/toast';
+import { useToast } from '@/hooks/use-toast';
 
 interface SessionContextType {
   session: Session | null;
@@ -14,15 +15,22 @@ interface SessionContextType {
   signOut: () => Promise<void>;
 }
 
-const SessionContext = createContext<SessionContextType | undefined>(undefined);
+export const SessionContext = createContext<SessionContextType | undefined>(undefined);
 
 export const SessionContextProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<{ role: string | null; class_name: string | null; first_name: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
+  const loadingRef = React.useRef(true);
   const navigate = useNavigate();
   const location = useLocation();
+  const { toast } = useToast();
+
+  const syncSetLoading = (val: boolean) => {
+    setLoading(val);
+    loadingRef.current = val;
+  };
 
   const fetchProfile = async (userId: string) => {
     const { data: profileData, error: profileError } = await supabase
@@ -40,23 +48,71 @@ export const SessionContextProvider = ({ children }: { children: ReactNode }) =>
 
   useEffect(() => {
     const initSession = async () => {
-      const { data: { session: initialSession } } = await supabase.auth.getSession();
-      
-      if (initialSession) {
-        setSession(initialSession);
-        setUser(initialSession.user);
-        const profileData = await fetchProfile(initialSession.user.id);
-        setProfile(profileData);
-        
-        if (location.pathname === '/login' || location.pathname === '/') {
-          if (profileData?.role === 'admin' || profileData?.role === 'faculty') {
-            navigate('/dashboard/faculty');
-          } else {
-            navigate('/student-dashboard');
+      console.log("SessionContext: Starting initSession...");
+      const timeoutId = setTimeout(() => {
+        if (loadingRef.current) {
+          console.warn("SessionContext: initSession HARD TIMEOUT triggered after 25s");
+          syncSetLoading(false);
+        }
+      }, 25000);
+
+      try {
+        console.log("SessionContext: Requesting session (with 20s race)...");
+
+        // Wrap getSession in a 20s timeout race
+        const result = (await Promise.race([
+          supabase.auth.getSession(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("getSession network timeout")), 20000))
+        ])) as any;
+
+        const initialSession = result?.data?.session;
+        const sessionError = result?.error;
+
+        if (sessionError) {
+          console.error("SessionContext: Supabase error", sessionError);
+          throw sessionError;
+        }
+
+        console.log("SessionContext: initialSession check complete. Has session:", !!initialSession);
+
+        if (initialSession) {
+          setSession(initialSession);
+          setUser(initialSession.user);
+
+          console.log("SessionContext: Fetching profile...");
+          const profileData = await Promise.race([
+            fetchProfile(initialSession.user.id),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("Profile fetch timeout")), 5000))
+          ]).catch(err => {
+            console.warn("SessionContext: Profile fetch issue", err);
+            return null;
+          });
+
+          setProfile(profileData as any);
+          console.log("SessionContext: Profile loaded:", profileData);
+
+          if (location.pathname === '/login' || location.pathname === '/') {
+            const data = profileData as any;
+            if (data?.role === 'admin' || data?.role === 'faculty') {
+              console.log("SessionContext: Navigating to Admin Dashboard");
+              navigate('/dashboard');
+            } else if (data?.role === 'student') {
+              console.log("SessionContext: Navigating to Student Dashboard");
+              navigate('/student-dashboard');
+            } else {
+              console.warn("SessionContext: No valid role found. Signing out to prevent loop.");
+              await supabase.auth.signOut();
+              navigate('/login');
+            }
           }
         }
+      } catch (error) {
+        console.error('SessionContext: Initialization failed:', error);
+      } finally {
+        console.log("SessionContext: initSession cleanup (setting loading: false)");
+        clearTimeout(timeoutId);
+        syncSetLoading(false);
       }
-      setLoading(false);
     };
 
     initSession();
@@ -67,19 +123,49 @@ export const SessionContextProvider = ({ children }: { children: ReactNode }) =>
         setUser(currentSession?.user || null);
 
         if (currentSession?.user) {
-          const profileData = await fetchProfile(currentSession.user.id);
+          console.log("SessionContext: User detected, fetching profile...");
+          // Add a timeout to profile fetch in listener too
+          const profileData = await Promise.race([
+            fetchProfile(currentSession.user.id),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("Profile fetch timeout")), 10000))
+          ]).catch(err => {
+            console.error("SessionContext: Profile fetch failed in listener", err);
+            return null;
+          }) as any;
+
           setProfile(profileData);
-          
-          if (event === 'SIGNED_IN') {
-            if (profileData?.role === 'admin' || profileData?.role === 'faculty') {
-              navigate('/dashboard/faculty');
-            } else {
+          console.log("SessionContext: Profile state updated:", profileData);
+
+          if (event === 'SIGNED_IN' || (event === 'INITIAL_SESSION' && currentSession)) {
+            const role = profileData?.role;
+            console.log("SessionContext: Evaluating redirect for role:", role);
+
+            if (role === 'admin' || role === 'faculty') {
+              console.log("SessionContext: Navigating to Admin Dashboard");
+              navigate('/dashboard');
+            } else if (role === 'student') {
+              console.log("SessionContext: Navigating to Student Dashboard");
               navigate('/student-dashboard');
+            } else if (profileData === null) {
+              console.error("SessionContext: NO PROFILE FOUND for user", currentSession.user.id);
+              toast({
+                title: "Profile Missing",
+                description: "Your account exists but no profile was found. Please contact an administrator.",
+                variant: "destructive"
+              });
+            } else {
+              console.warn("SessionContext: Invalid role detected:", role);
+              toast({
+                title: "Access Denied",
+                description: "Your account does not have a valid role assigned.",
+                variant: "destructive"
+              });
             }
           }
         } else {
           setProfile(null);
           if (event === 'SIGNED_OUT') {
+            console.log("SessionContext: SIGNED_OUT event triggered");
             navigate('/login');
           }
         }
@@ -92,8 +178,25 @@ export const SessionContextProvider = ({ children }: { children: ReactNode }) =>
   }, [navigate]);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    showSuccess('Successfully signed out.');
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        throw error;
+      }
+      // Explicitly clear state and navigate
+      setSession(null);
+      setUser(null);
+      setProfile(null);
+      navigate('/login');
+      showSuccess('Successfully signed out.');
+    } catch (error) {
+      console.error('Error signing out:', error);
+      // Even if there's an error (e.g. network), we should probably clear local state and force redirect
+      setSession(null);
+      setUser(null);
+      setProfile(null);
+      navigate('/login');
+    }
   };
 
   return (

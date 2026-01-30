@@ -32,6 +32,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Trash2, RefreshCw, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface Batch {
   id: string;
@@ -48,10 +49,37 @@ interface Department {
 }
 
 const BatchManagement = () => {
-  const [batches, setBatches] = useState<Batch[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [fetchingDepts, setFetchingDepts] = useState(false);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const { data: departments = [], isLoading: fetchingDepts } = useQuery({
+    queryKey: ['departments', 'id-name'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("departments").select("id, name").order("name");
+      if (error) throw error;
+      return data as Department[];
+    }
+  });
+
+  const { data: batches = [], isLoading: loading, refetch: refetchBatches } = useQuery({
+    queryKey: ['batches'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("batches")
+        .select(`
+          id, 
+          name, 
+          department_id, 
+          year, 
+          semester,
+          departments (name)
+        `)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as any as Batch[];
+    }
+  });
+
   const [newBatch, setNewBatch] = useState({
     name: "",
     department_id: "",
@@ -59,54 +87,15 @@ const BatchManagement = () => {
     semester: 1,
   });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const { toast } = useToast();
 
-  const fetchDepartments = useCallback(async () => {
-    setFetchingDepts(true);
-    const { data, error } = await supabase.from("departments").select("id, name").order("name");
-    if (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load departments.",
-        variant: "destructive",
-      });
-    } else {
-      setDepartments(data || []);
-    }
-    setFetchingDepts(false);
-  }, [toast]);
+  const fetchData = async () => {
+    await refetchBatches();
+    await queryClient.invalidateQueries({ queryKey: ['departments', 'id-name'] });
+  };
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    await fetchDepartments();
-
-    const { data: batchData, error } = await supabase
-      .from("batches")
-      .select(`
-        id, 
-        name, 
-        department_id, 
-        year, 
-        semester,
-        departments (name)
-      `)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      toast({
-        title: "Error",
-        description: "Failed to fetch batches.",
-        variant: "destructive",
-      });
-    } else {
-      setBatches(batchData as any || []);
-    }
-    setLoading(false);
-  }, [fetchDepartments, toast]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const fetchDepartments = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['departments', 'id-name'] });
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -153,7 +142,7 @@ const BatchManagement = () => {
       });
       setIsDialogOpen(false);
       setNewBatch({ name: "", department_id: "", year: new Date().getFullYear(), semester: 1 });
-      fetchData();
+      queryClient.invalidateQueries({ queryKey: ['batches'] });
     }
   };
 
@@ -167,7 +156,7 @@ const BatchManagement = () => {
       });
     } else {
       toast({ title: "Deleted", description: "Batch removed." });
-      fetchData();
+      queryClient.invalidateQueries({ queryKey: ['batches'] });
     }
   };
 
@@ -205,10 +194,10 @@ const BatchManagement = () => {
                   <div className="grid gap-2">
                     <div className="flex justify-between items-center">
                       <Label htmlFor="department">Department</Label>
-                      <Button 
-                        variant="link" 
-                        size="sm" 
-                        className="p-0 h-auto text-xs" 
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="p-0 h-auto text-xs"
                         onClick={fetchDepartments}
                         type="button"
                       >

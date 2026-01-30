@@ -22,13 +22,15 @@ import {
 import { Loader2, Brain, Info, UserPlus, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { showSuccess, showError } from "@/utils/toast";
-import { 
-    Dialog, 
-    DialogContent, 
-    DialogHeader, 
-    DialogTitle, 
-    DialogDescription 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription
 } from "@/components/ui/dialog";
+import { useTimetableSlots } from "@/hooks/useTimetableSlots";
+import { Calendar } from "lucide-react";
 
 interface ScheduleSlot {
   id: string;
@@ -49,12 +51,9 @@ interface Recommendation {
 }
 
 const DAYS_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-const TIME_SLOTS_ORDER = [
-  "08:00-09:00", "09:00-10:00", "10:00-11:00", "11:00-12:00",
-  "13:00-14:00", "14:00-15:00", "15:00-16:00"
-];
 
 const ViewTimetables = () => {
+  const { slots: TIME_SLOTS_ORDER, loading: slotsLoading } = useTimetableSlots();
   const [batches, setBatches] = useState<any[]>([]);
   const [selectedBatchName, setSelectedBatchName] = useState<string>("");
   const [timetable, setTimetable] = useState<ScheduleSlot[]>([]);
@@ -88,11 +87,11 @@ const ViewTimetables = () => {
       const response = await fetch(`https://bcfkkrfrzutbmhdbosaa.supabase.co/functions/v1/ai-timetable-engine`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          mode: 'recommend', 
-          day: slot.day, 
+        body: JSON.stringify({
+          mode: 'recommend',
+          day: slot.day,
           time_slot: slot.time_slot,
-          subject_id: slot.subject_id 
+          subject_id: slot.subject_id
         })
       });
       const data = await response.json();
@@ -109,15 +108,15 @@ const ViewTimetables = () => {
     if (!slot) return <div className="h-full w-full bg-slate-50 border border-dashed rounded" />;
 
     return (
-      <div 
+      <div
         onClick={() => handleCellClick(slot)}
         className={`p-2 rounded-md text-xs h-full flex flex-col justify-center items-center text-center cursor-pointer transition-all hover:ring-2 hover:ring-primary/50
           ${slot.type === 'lab' ? "bg-blue-100 border border-blue-200" : "bg-emerald-100 border border-emerald-200"}
         `}
       >
         <div className="flex items-center gap-1 mb-1">
-            <span className="font-bold">{slot.subjects?.name || "N/A"}</span>
-            {slot.ai_score > 30 && <Brain className="h-3 w-3 text-blue-500" />}
+          <span className="font-bold">{slot.subjects?.name || "N/A"}</span>
+          {slot.ai_score > 30 && <Brain className="h-3 w-3 text-blue-500" />}
         </div>
         <span className="opacity-70">{slot.faculty?.name || "N/A"}</span>
       </div>
@@ -127,7 +126,12 @@ const ViewTimetables = () => {
   return (
     <DashboardLayout>
       <div className="container mx-auto py-8">
-        <h1 className="text-3xl font-bold mb-8">AI Timetable View</h1>
+        <div className="flex items-center gap-3 mb-8">
+          <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
+            <Calendar className="w-8 h-8" />
+          </div>
+          <h1 className="text-3xl font-bold mb-0">Time Table View</h1>
+        </div>
 
         <Card className="mb-8">
           <CardHeader><CardTitle className="text-lg">Select Batch</CardTitle></CardHeader>
@@ -141,7 +145,7 @@ const ViewTimetables = () => {
           </CardContent>
         </Card>
 
-        {loading ? <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin" /></div> : (
+        {loading || slotsLoading ? <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin" /></div> : (
           selectedBatchName && (
             <div className="overflow-x-auto rounded-md border">
               <Table>
@@ -202,7 +206,7 @@ const ViewTimetables = () => {
                   </div>
                 )}
               </div>
-              
+
               <div className="bg-blue-50 p-3 rounded-md border border-blue-100 flex gap-3">
                 <Info className="h-5 w-5 text-blue-500 shrink-0" />
                 <p className="text-[11px] text-blue-800 leading-relaxed">

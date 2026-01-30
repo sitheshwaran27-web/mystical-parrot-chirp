@@ -26,6 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Trash2, Upload, FileSpreadsheet, RefreshCw, Edit, Plus } from "lucide-react";
 import * as XLSX from "xlsx";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface Department {
   id: string;
@@ -38,31 +39,30 @@ interface Department {
 const initialDeptState = { id: "", name: "", code: "", year: "", semester: "" };
 
 const DepartmentManagement = () => {
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const { data: departments = [], isLoading: loading, refetch: refetchDepartments } = useQuery({
+    queryKey: ['departments'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("departments")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as Department[];
+    }
+  });
+
   const [isUploading, setIsUploading] = useState(false);
   const [currentDept, setCurrentDept] = useState(initialDeptState);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { toast } = useToast();
 
   const fetchDepartments = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("departments")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      toast({ title: "Error", description: "Failed to fetch departments.", variant: "destructive" });
-    } else {
-      setDepartments(data || []);
-    }
-    setLoading(false);
+    await refetchDepartments();
   };
-
-  useEffect(() => { fetchDepartments(); }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -70,9 +70,9 @@ const DepartmentManagement = () => {
   };
 
   const handleEditDept = (dept: Department) => {
-    setCurrentDept({ 
-      id: dept.id, 
-      name: dept.name, 
+    setCurrentDept({
+      id: dept.id,
+      name: dept.name,
       code: dept.code,
       year: dept.year ? String(dept.year) : "",
       semester: dept.semester ? String(dept.semester) : ""
@@ -87,13 +87,13 @@ const DepartmentManagement = () => {
       return;
     }
 
-    const payload = { 
-      name: currentDept.name, 
+    const payload = {
+      name: currentDept.name,
       code: currentDept.code,
       year: currentDept.year ? parseInt(currentDept.year) : null,
       semester: currentDept.semester ? parseInt(currentDept.semester) : null,
     };
-    
+
     let error = null;
 
     if (currentDept.id) {
@@ -110,7 +110,7 @@ const DepartmentManagement = () => {
       toast({ title: "Success", description: currentDept.id ? "Department updated." : "Department added." });
       setCurrentDept(initialDeptState);
       setIsDialogOpen(false);
-      fetchDepartments();
+      queryClient.invalidateQueries({ queryKey: ['departments'] });
     }
   };
 
@@ -120,14 +120,14 @@ const DepartmentManagement = () => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Deleted", description: "Department removed." });
-      fetchDepartments();
+      queryClient.invalidateQueries({ queryKey: ['departments'] });
       setSelectedIds(selectedIds.filter(selectedId => selectedId !== id));
     }
   };
 
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0) return;
-    
+
     const { error } = await supabase.from("departments").delete().in("id", selectedIds);
     if (error) {
       toast({
@@ -141,7 +141,7 @@ const DepartmentManagement = () => {
         description: `Successfully deleted ${selectedIds.length} departments.`,
       });
       setSelectedIds([]);
-      fetchDepartments();
+      queryClient.invalidateQueries({ queryKey: ['departments'] });
     }
   };
 
@@ -172,18 +172,23 @@ const DepartmentManagement = () => {
         const workbook = XLSX.read(data, { type: "array" });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const json = XLSX.utils.sheet_to_json(sheet);
-        const depts = json.map((row: any) => ({
-          name: row.name || row.Name || "",
-          code: row.code || row.Code || "",
-          year: row.year || row.Year ? parseInt(row.year || row.Year) : null,
-          semester: row.semester || row.Semester ? parseInt(row.semester || row.Semester) : null,
-        })).filter(d => d.name && d.code);
-        const { error } = await supabase.from("departments").insert(depts);
-        if (error) throw error;
+        const depts = json.map((row: unknown) => {
+          const r = row as any; // Temporary cast to match expected fields from dynamic Excel row
+          return {
+            name: r.name || r.Name || "",
+            code: r.code || r.Code || "",
+            year: r.year || r.Year ? parseInt(r.year || r.Year) : null,
+            semester: r.semester || r.Semester ? parseInt(r.semester || r.Semester) : null,
+          };
+        }).filter(d => d.name && d.code);
         toast({ title: "Success", description: `Uploaded ${depts.length} departments.` });
-        fetchDepartments();
-      } catch (error: any) {
-        toast({ title: "Upload Failed", description: error.message, variant: "destructive" });
+        queryClient.invalidateQueries({ queryKey: ['departments'] });
+      } catch (error: unknown) {
+        toast({
+          title: "Upload Failed",
+          description: error instanceof Error ? error.message : "Unknown error occurred",
+          variant: "destructive",
+        });
       } finally {
         setIsUploading(false);
         if (fileInputRef.current) fileInputRef.current.value = "";
@@ -214,7 +219,7 @@ const DepartmentManagement = () => {
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="icon" onClick={fetchDepartments} disabled={loading}><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /></Button>
-            
+
             {selectedIds.length > 0 && (
               <Button variant="destructive" onClick={handleBulkDelete}>
                 <Trash2 className="mr-2 h-4 w-4" /> Delete Selected
@@ -270,7 +275,7 @@ const DepartmentManagement = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[50px]">
-                    <Checkbox 
+                    <Checkbox
                       checked={departments.length > 0 && selectedIds.length === departments.length}
                       onCheckedChange={toggleSelectAll}
                     />
@@ -289,7 +294,7 @@ const DepartmentManagement = () => {
                   departments.map((dept) => (
                     <TableRow key={dept.id} className={selectedIds.includes(dept.id) ? "bg-muted/50" : ""}>
                       <TableCell>
-                        <Checkbox 
+                        <Checkbox
                           checked={selectedIds.includes(dept.id)}
                           onCheckedChange={() => toggleSelectRow(dept.id)}
                         />

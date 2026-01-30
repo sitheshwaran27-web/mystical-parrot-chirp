@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useSession } from "@/context/SessionContext";
+import { useSession } from "@/hooks/use-session";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -18,28 +18,25 @@ import { showSuccess, showError } from "@/utils/toast";
 import { Loader2, Download } from "lucide-react";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
+import { useTimetableSlots } from "@/hooks/useTimetableSlots";
 
 interface ScheduleSlot {
   id: string;
   day: string;
   time_slot: string;
   class_name: string;
-  subject_id: string;
-  faculty_id: string;
+  subject_id?: string;
+  faculty_id?: string;
   type: string; // "theory", "lab", "break"
-  subjects: { name: string } | null;
-  faculty: { name: string } | null;
+  subjects: { name: string } | { name: string }[] | null;
+  faculty: { name: string } | { name: string }[] | null;
 }
 
 const DAYS_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-const TIME_SLOTS_ORDER = [
-  "08:00-09:00", "09:00-10:00", "10:00-11:00", "11:00-12:00",
-  "12:00-13:00", "13:00-14:00", "14:00-15:00", "15:00-16:00",
-  "16:00-17:00", "17:00-18:00"
-];
 
 const TimetableDisplay: React.FC = () => {
   const { profile, loading: sessionLoading } = useSession();
+  const { slots: TIME_SLOTS_ORDER, loading: slotsLoading } = useTimetableSlots();
   const [timetable, setTimetable] = useState<ScheduleSlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -62,6 +59,8 @@ const TimetableDisplay: React.FC = () => {
         time_slot,
         class_name,
         type,
+        subject_id,
+        faculty_id,
         subjects (name),
         faculty (name)
       `)
@@ -75,7 +74,7 @@ const TimetableDisplay: React.FC = () => {
       setError("Failed to load timetable. Please try again later.");
       setTimetable([]);
     } else {
-      setTimetable(data as any[]);
+      setTimetable(data as unknown as ScheduleSlot[]);
       showSuccess("Timetable loaded successfully.");
     }
     setLoading(false);
@@ -99,6 +98,13 @@ const TimetableDisplay: React.FC = () => {
     const isLab = slot.type === "lab";
     const isBreak = slot.type === "break";
 
+    const subjectName = Array.isArray(slot.subjects)
+      ? slot.subjects[0]?.name
+      : slot.subjects?.name;
+    const facultyName = Array.isArray(slot.faculty)
+      ? slot.faculty[0]?.name
+      : slot.faculty?.name;
+
     return (
       <div
         className={`p-2 rounded-md text-xs h-full flex flex-col justify-center items-center text-center
@@ -111,8 +117,8 @@ const TimetableDisplay: React.FC = () => {
           <span className="font-semibold">Break</span>
         ) : (
           <>
-            <span className="font-semibold">{slot.subjects?.name || "N/A"}</span>
-            <span>{slot.faculty?.name || "N/A"}</span>
+            <span className="font-semibold">{subjectName || "N/A"}</span>
+            <span>{facultyName || "N/A"}</span>
             {isLab && <span className="text-blue-600">(Lab)</span>}
           </>
         )}
@@ -191,8 +197,8 @@ const TimetableDisplay: React.FC = () => {
                     return (
                       <TableRow key={slot.id}>
                         <TableCell className="font-medium">{slot.time_slot}</TableCell>
-                        <TableCell>{slot.subjects?.name || "N/A"}</TableCell>
-                        <TableCell>{slot.faculty?.name || "N/A"}</TableCell>
+                        <TableCell>{(Array.isArray(slot.subjects) ? slot.subjects[0]?.name : slot.subjects?.name) || "N/A"}</TableCell>
+                        <TableCell>{(Array.isArray(slot.faculty) ? slot.faculty[0]?.name : slot.faculty?.name) || "N/A"}</TableCell>
                         <TableCell>
                           <span
                             className={`px-2 py-1 rounded-full text-xs font-semibold
@@ -252,9 +258,11 @@ const TimetableDisplay: React.FC = () => {
       days.forEach(day => {
         const slot = timetable.find(s => s.day === day && s.time_slot === timeSlot);
         if (slot) {
+          const sName = Array.isArray(slot.subjects) ? slot.subjects[0]?.name : slot.subjects?.name;
+          const fName = Array.isArray(slot.faculty) ? slot.faculty[0]?.name : slot.faculty?.name;
           const content = slot.type === "break"
             ? "Break"
-            : `${slot.subjects?.name || "N/A"}\n${slot.faculty?.name || "N/A"}${slot.type === "lab" ? " (Lab)" : ""}`;
+            : `${sName || "N/A"}\n${fName || "N/A"}${slot.type === "lab" ? " (Lab)" : ""}`;
           rowData.push(content);
         } else {
           rowData.push("");
@@ -277,7 +285,7 @@ const TimetableDisplay: React.FC = () => {
     showSuccess("Timetable exported as PDF.");
   };
 
-  if (sessionLoading || loading) {
+  if (sessionLoading || loading || slotsLoading) {
     return (
       <div className="flex justify-center items-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

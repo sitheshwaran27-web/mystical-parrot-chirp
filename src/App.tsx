@@ -1,3 +1,5 @@
+
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -6,6 +8,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import NotFound from "./pages/NotFound";
 import FacultyManagement from "./pages/FacultyManagement";
 import LoginPage from "./pages/LoginPage";
+import ConnectionTest from "./pages/ConnectionTest";
 import StudentDashboard from "./pages/StudentDashboard";
 import SubjectManagement from "./pages/SubjectManagement";
 import DepartmentManagement from "./pages/DepartmentManagement";
@@ -13,9 +16,19 @@ import BatchManagement from "./pages/BatchManagement";
 import SchedulingRuleManagement from "./pages/SchedulingRuleManagement";
 import TimetableGeneration from "./pages/TimetableGeneration";
 import ViewTimetables from "./pages/ViewTimetables";
+import StudentManagement from "./pages/StudentManagement";
 import WorkloadReports from "./pages/WorkloadReports";
+import ManageData from "./pages/ManageData";
+import SchedulingRules from "./pages/SchedulingRules";
+import SchedulingPriorities from "./pages/SchedulingPriorities";
+import PartialRegeneration from "./pages/PartialRegeneration";
+import ExamManagement from "./pages/ExamManagement";
+import AbsenceManagement from "./pages/AbsenceManagement";
+import DataExport from "./pages/DataExport";
 import FacultyPreferences from "./pages/FacultyPreferences";
-import { SessionContextProvider, useSession } from "./context/SessionContext";
+import DashboardHome from "./pages/DashboardHome";
+import { SessionContextProvider } from "./context/SessionContext";
+import { useSession } from "./hooks/use-session";
 import React from "react";
 import { Loader2 } from "lucide-react";
 
@@ -48,104 +61,173 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles: string
 };
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <SessionContextProvider>
-          <Routes>
-            <Route path="/" element={<Navigate to="/login" replace />} />
-            <Route path="/login" element={<LoginPage />} />
-            
-            <Route
-              path="/dashboard/faculty"
-              element={
-                <ProtectedRoute allowedRoles={["admin", "faculty"]}>
-                  <FacultyManagement />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard/preferences"
-              element={
-                <ProtectedRoute allowedRoles={["admin", "faculty"]}>
-                  <FacultyPreferences />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard/departments"
-              element={
-                <ProtectedRoute allowedRoles={["admin"]}>
-                  <DepartmentManagement />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard/batches"
-              element={
-                <ProtectedRoute allowedRoles={["admin"]}>
-                  <BatchManagement />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard/subjects"
-              element={
-                <ProtectedRoute allowedRoles={["admin"]}>
-                  <SubjectManagement />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard/rules"
-              element={
-                <ProtectedRoute allowedRoles={["admin"]}>
-                  <SchedulingRuleManagement />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard/generate-timetable"
-              element={
-                <ProtectedRoute allowedRoles={["admin"]}>
-                  <TimetableGeneration />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard/view-timetables"
-              element={
-                <ProtectedRoute allowedRoles={["admin", "faculty"]}>
-                  <ViewTimetables />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard/workload-reports"
-              element={
-                <ProtectedRoute allowedRoles={["admin", "faculty"]}>
-                  <WorkloadReports />
-                </ProtectedRoute>
-              }
-            />
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <SessionContextProvider>
+            <Routes>
+              <Route path="/" element={<Navigate to="/login" replace />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/test-connection" element={<ConnectionTest />} />
 
-            <Route
-              path="/student-dashboard"
-              element={
-                <ProtectedRoute allowedRoles={["student"]}>
-                  <StudentDashboard />
-                </ProtectedRoute>
-              }
-            />
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute allowedRoles={["admin", "faculty"]}>
+                    <DashboardHome />
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </SessionContextProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+              <Route
+                path="/dashboard/faculty"
+                element={
+                  <ProtectedRoute allowedRoles={["admin", "faculty"]}>
+                    <FacultyManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/preferences"
+                element={
+                  <ProtectedRoute allowedRoles={["admin", "faculty"]}>
+                    <FacultyPreferences />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/departments"
+                element={
+                  <ProtectedRoute allowedRoles={["admin"]}>
+                    <DepartmentManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/batches"
+                element={
+                  <ProtectedRoute allowedRoles={["admin"]}>
+                    <BatchManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/subjects"
+                element={
+                  <ProtectedRoute allowedRoles={["admin"]}>
+                    <SubjectManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/rules"
+                element={
+                  <ProtectedRoute allowedRoles={["admin"]}>
+                    <SchedulingRules />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/generate-timetable"
+                element={
+                  <ProtectedRoute allowedRoles={["admin"]}>
+                    <TimetableGeneration />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/view-timetables"
+                element={
+                  <ProtectedRoute allowedRoles={["admin", "faculty"]}>
+                    <ViewTimetables />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/workload-reports"
+                element={
+                  <ProtectedRoute allowedRoles={["admin", "faculty"]}>
+                    <WorkloadReports />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/manage-data"
+                element={
+                  <ProtectedRoute allowedRoles={["admin"]}>
+                    <ManageData />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/priorities"
+                element={
+                  <ProtectedRoute allowedRoles={["admin"]}>
+                    <SchedulingPriorities />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/partial-regeneration"
+                element={
+                  <ProtectedRoute allowedRoles={["admin"]}>
+                    <PartialRegeneration />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/exams"
+                element={
+                  <ProtectedRoute allowedRoles={["admin"]}>
+                    <ExamManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/absence"
+                element={
+                  <ProtectedRoute allowedRoles={["admin"]}>
+                    <AbsenceManagement />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/dashboard/export"
+                element={
+                  <ProtectedRoute allowedRoles={["admin"]}>
+                    <DataExport />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/student-dashboard"
+                element={
+                  <ProtectedRoute allowedRoles={["student"]}>
+                    <StudentDashboard />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/dashboard/students"
+                element={
+                  <ProtectedRoute allowedRoles={["admin"]}>
+                    <StudentManagement />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </SessionContextProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

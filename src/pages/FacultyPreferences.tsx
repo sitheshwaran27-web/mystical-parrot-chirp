@@ -3,13 +3,14 @@
 import React, { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { supabase } from "@/integrations/supabase/client";
-import { useSession } from "@/context/SessionContext";
+import { useSession } from "@/hooks/use-session";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Star, Trash2, Plus, Clock } from "lucide-react";
+import { useTimetableSlots } from "@/hooks/useTimetableSlots";
 
 interface Preference {
   id: string;
@@ -21,11 +22,11 @@ interface Preference {
 }
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-const TIMES = ["08:00-09:00", "09:00-10:00", "10:00-11:00", "11:00-12:00", "13:00-14:00", "14:00-15:00", "15:00-16:00"];
 
 const FacultyPreferences = () => {
   const { user } = useSession();
   const { toast } = useToast();
+  const { slots: TIMES, loading: slotsLoading } = useTimetableSlots();
   const [preferences, setPreferences] = useState<Preference[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,7 +56,15 @@ const FacultyPreferences = () => {
   };
 
   const fetchSubjects = async () => {
-    const { data } = await supabase.from("subjects").select("id, name");
+    const { data, error } = await supabase.from("subjects").select("id, name");
+    if (error) {
+      console.error("Error fetching subjects:", error);
+      toast({
+        title: "Error fetching subjects",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
     setSubjects(data || []);
   };
 
@@ -71,6 +80,7 @@ const FacultyPreferences = () => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Preference Saved", description: "AI will prioritize this slot for you." });
+      setNewPref(prev => ({ ...prev, subject_id: "" }));
       fetchPreferences();
     }
     setSaving(false);
@@ -101,7 +111,10 @@ const FacultyPreferences = () => {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Subject</label>
-                <Select onValueChange={(v) => setNewPref(p => ({ ...p, subject_id: v }))}>
+                <Select
+                  value={newPref.subject_id}
+                  onValueChange={(v) => setNewPref(p => ({ ...p, subject_id: v }))}
+                >
                   <SelectTrigger><SelectValue placeholder="Select Subject" /></SelectTrigger>
                   <SelectContent>
                     {subjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
@@ -138,7 +151,7 @@ const FacultyPreferences = () => {
               <CardTitle>Your Active Preferences</CardTitle>
             </CardHeader>
             <CardContent>
-              {loading ? <div className="flex justify-center py-10"><Loader2 className="animate-spin h-8 w-8" /></div> : (
+              {loading || slotsLoading ? <div className="flex justify-center py-10"><Loader2 className="animate-spin h-8 w-8" /></div> : (
                 <Table>
                   <TableHeader>
                     <TableRow>
