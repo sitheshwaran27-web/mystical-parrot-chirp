@@ -1,5 +1,4 @@
--- 0. Helper Function to check role without recursion
--- SECURITY DEFINER bypasses RLS, allowing us to lookup roles safely
+-- 0. Helper Function (Keep this for other tables)
 CREATE OR REPLACE FUNCTION public.check_is_admin()
 RETURNS boolean AS $$
 BEGIN
@@ -11,24 +10,27 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 1. Profiles: Allow users to read all profiles (role check transparency)
+-- 1. Profiles: RECURSION-PROOF POLICIES
+-- We stop checking "role" inside the "profiles" table policies to prevent loops.
 DROP POLICY IF EXISTS "Admins can manage all profiles" ON profiles;
 DROP POLICY IF EXISTS "Users can read own profile" ON profiles;
 DROP POLICY IF EXISTS "Allow authenticated users to read profiles" ON profiles;
 DROP POLICY IF EXISTS "Users can insert own profile" ON profiles;
 
-CREATE POLICY "Allow authenticated users to read profiles" ON profiles
+-- Everyone logged in can read ANY profile (stops the fetching loop)
+CREATE POLICY "Profiles are readable by all" ON profiles
 FOR SELECT TO authenticated
 USING ( true );
 
+-- Users can only modify their OWN profile
+CREATE POLICY "Users can update own profile" ON profiles
+FOR UPDATE TO authenticated
+USING ( auth.uid() = id );
+
+-- Users can initialize their own profile
 CREATE POLICY "Users can insert own profile" ON profiles
 FOR INSERT TO authenticated
 WITH CHECK ( auth.uid() = id );
-
-CREATE POLICY "Admins can manage all profiles" ON profiles
-FOR ALL TO authenticated
-USING ( check_is_admin() )
-WITH CHECK ( check_is_admin() );
 
 -- 2. Students
 DROP POLICY IF EXISTS "Admins can manage students" ON students;
